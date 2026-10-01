@@ -26,7 +26,7 @@ export function GoogleCallbackPage() {
   }, [completeGoogleLogin, navigate]);
 
   return (
-    <div className="flex h-full items-center justify-center text-sm text-neutral-400">
+    <div className="flex h-full items-center justify-center text-sm text-neutral-600">
       Iniciando sesión...
     </div>
   );

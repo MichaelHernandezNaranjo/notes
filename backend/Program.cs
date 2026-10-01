@@ -107,8 +107,33 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// Behind Cloudflare Tunnel TLS is terminated upstream; trust X-Forwarded-* headers.
+var forwardedOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+                     | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+};
+forwardedOptions.KnownNetworks.Clear();
+forwardedOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedOptions);
+
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next();
+    }
+    catch (UnauthorizedAccessException ex) when (!context.Response.HasStarted)
+    {
+        var isAuthenticated = context.User.Identity?.IsAuthenticated == true;
+        context.Response.StatusCode = isAuthenticated ? StatusCodes.Status403Forbidden : StatusCodes.Status401Unauthorized;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message });
+    }
+});
+
 app.UseRequestLocalization();
-app.UseHttpsRedirection();
+// No HTTPS redirection: dev goes through the Vite HTTP proxy and production sits behind
+// Cloudflare Tunnel, which already terminates TLS (a redirect would drop Authorization).
 app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
 app.UseAuthorization();

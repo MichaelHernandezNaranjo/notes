@@ -2,7 +2,7 @@ import { toJpeg, toPng } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 
 async function captureElement(element: HTMLElement, format: 'png' | 'jpeg'): Promise<string> {
-  const options = { backgroundColor: '#0b0f19', pixelRatio: 2 };
+  const options = { backgroundColor: '#ffffff', pixelRatio: 2 };
   return format === 'png' ? toPng(element, options) : toJpeg(element, { ...options, quality: 0.95 });
 }
 

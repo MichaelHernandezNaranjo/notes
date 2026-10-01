@@ -70,10 +70,21 @@ public sealed class CollaborativeNoteHub : Hub
             throw new HubException("You do not have edit access to this note.");
         }
 
-        _documentStore.ApplyUpdate(nodeId, update);
-        _documentStore.ScheduleFlush(nodeId, _nodeRepository, PersistDebounce);
-
+        // Deltas are only relayed; persistence uses full snapshots (SaveSnapshot).
         await Clients.OthersInGroup(NoteGroup(nodeId)).SendAsync("ReceiveYjsUpdate", nodeId, update);
+    }
+
+    /// <summary>Stores the full Yjs document state sent by a client (debounced write to SQL Server).</summary>
+    public async Task SaveSnapshot(Guid nodeId, byte[] state)
+    {
+        var access = await _permissionRepository.CheckAccessAsync(nodeId, UserId);
+        if (access is null || access == "Read")
+        {
+            throw new HubException("You do not have edit access to this note.");
+        }
+
+        _documentStore.ApplyUpdate(nodeId, state);
+        _documentStore.ScheduleFlush(nodeId, _nodeRepository, PersistDebounce);
     }
 
     /// <summary>Broadcasts awareness (cursor position, selection, user color) to peers.</summary>

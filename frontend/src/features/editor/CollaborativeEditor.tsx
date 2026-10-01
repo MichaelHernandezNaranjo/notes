@@ -8,7 +8,7 @@ import * as Y from 'yjs';
 import { useAuth } from '../auth/AuthContext';
 import { useI18n } from '../../i18n/I18nProvider';
 import { exportNoteAsImage, exportNoteAsPdf } from './exportNote';
-import { PresenceAvatars } from './PresenceAvatars';
+import { EditorToolbar } from './EditorToolbar';
 import { YjsSignalRProvider, type PresenceUser } from './YjsSignalRProvider';
 
 const COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444'];
@@ -21,6 +21,7 @@ function colorForUser(id: string): string {
 export type CollaborativeEditorProps = {
   nodeId: string;
   noteName: string;
+  onShare: () => void;
 };
 
 /**
@@ -29,7 +30,7 @@ export type CollaborativeEditorProps = {
  * concurrent edits, so multiple users editing the same note see changes
  * merge instantly and without conflicts.
  */
-export function CollaborativeEditor({ nodeId, noteName }: CollaborativeEditorProps) {
+export function CollaborativeEditor({ nodeId, noteName, onShare }: CollaborativeEditorProps) {
   const { user } = useAuth();
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -76,43 +77,18 @@ export function CollaborativeEditor({ nodeId, noteName }: CollaborativeEditorPro
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2">
-        <div className="flex items-center gap-3">
-          <h2 className="text-base font-medium text-white">{noteName || t('editor.untitled')}</h2>
-          <span className="text-xs text-neutral-500">
-            {saveState === 'saving' ? t('editor.saving') : t('editor.saved')}
-          </span>
-        </div>
-        <div className="flex items-center gap-4">
-          <PresenceAvatars users={presence} />
-          <div className="flex gap-1">
-            <button
-              type="button"
-              className="rounded border border-border-subtle px-2 py-1 text-xs hover:border-accent-emerald"
-              onClick={() => containerRef.current && exportNoteAsPdf(containerRef.current, noteName || 'note')}
-            >
-              {t('editor.exportPdf')}
-            </button>
-            <button
-              type="button"
-              className="rounded border border-border-subtle px-2 py-1 text-xs hover:border-accent-blue"
-              onClick={() => containerRef.current && exportNoteAsImage(containerRef.current, noteName || 'note', 'png')}
-            >
-              {t('editor.exportPng')}
-            </button>
-            <button
-              type="button"
-              className="rounded border border-border-subtle px-2 py-1 text-xs hover:border-accent-purple"
-              onClick={() => containerRef.current && exportNoteAsImage(containerRef.current, noteName || 'note', 'jpeg')}
-            >
-              {t('editor.exportJpg')}
-            </button>
-          </div>
-        </div>
-      </div>
+      <EditorToolbar
+        title={noteName || t('editor.untitled')}
+        saveState={saveState}
+        presence={presence}
+        onShare={onShare}
+        onExportPdf={() => containerRef.current && exportNoteAsPdf(containerRef.current, noteName || 'note')}
+        onExportPng={() => containerRef.current && exportNoteAsImage(containerRef.current, noteName || 'note', 'png')}
+        onExportJpg={() => containerRef.current && exportNoteAsImage(containerRef.current, noteName || 'note', 'jpeg')}
+      />
 
       <div ref={containerRef} className="flex-1 overflow-y-auto bg-bg-base px-6 py-4">
-        <BlockNoteView editor={editor} theme="dark" />
+        <BlockNoteView editor={editor} theme="light" />
       </div>
     </div>
   );

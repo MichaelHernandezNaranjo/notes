@@ -5,12 +5,10 @@ import { CollaborativeEditor } from '../features/editor/CollaborativeEditor';
 import { ShareDialog } from '../features/sharing/ShareDialog';
 import { nodesApi } from '../services/nodesApi';
 import { useEffect } from 'react';
-import { useI18n } from '../i18n/I18nProvider';
 
 export function NotePage() {
   const { nodeId } = useParams<{ nodeId: string }>();
   const navigate = useNavigate();
-  const { t } = useI18n();
   const [noteName, setNoteName] = useState('');
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -28,17 +26,8 @@ export function NotePage() {
       <main className="flex-1">
         {nodeId ? (
           <div className="flex h-full flex-col">
-            <div className="flex justify-end border-b border-border-subtle px-4 py-1">
-              <button
-                type="button"
-                className="rounded border border-border-subtle px-3 py-1 text-xs hover:border-accent-purple"
-                onClick={() => setShareOpen(true)}
-              >
-                {t('editor.share')}
-              </button>
-            </div>
             <div className="flex-1">
-              <CollaborativeEditor nodeId={nodeId} noteName={noteName} />
+              <CollaborativeEditor key={nodeId} nodeId={nodeId} noteName={noteName} onShare={() => setShareOpen(true)} />
             </div>
           </div>
         ) : (

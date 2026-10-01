@@ -14,7 +14,7 @@ export function AppLayout() {
   const { sidebarCollapsed, toggleSidebar } = useTheme();
 
   return (
-    <div className="flex h-screen w-screen bg-bg-base text-neutral-100">
+    <div className="flex h-screen w-screen bg-bg-base text-neutral-900">
       <nav
         className={`flex flex-col border-r border-border-subtle bg-bg-elevated transition-all ${
           sidebarCollapsed ? 'w-14' : 'w-56'
@@ -23,7 +23,7 @@ export function AppLayout() {
         <button
           type="button"
           onClick={toggleSidebar}
-          className="flex items-center gap-2 px-3 py-4 text-left text-sm font-semibold text-white hover:bg-white/5"
+          className="flex items-center gap-2 px-3 py-4 text-left text-sm font-semibold text-neutral-900 hover:bg-black/5"
         >
           <span className="h-6 w-6 shrink-0 rounded bg-gradient-to-br from-accent-emerald via-accent-blue to-accent-purple" />
           {!sidebarCollapsed && <span>{t('app.name')}</span>}
@@ -34,8 +34,8 @@ export function AppLayout() {
               key={item.to}
               to={item.to}
               className={({ isActive }) =>
-                `flex items-center gap-2 rounded px-2 py-2 text-sm hover:bg-white/5 ${
-                  isActive ? 'bg-accent-blue/10 text-accent-blue' : 'text-neutral-300'
+                `flex items-center gap-2 rounded px-2 py-2 text-sm hover:bg-black/5 ${
+                  isActive ? 'bg-accent-blue/10 text-accent-blue' : 'text-neutral-700'
                 }`
               }
             >

@@ -1,0 +1,66 @@
+# Run from the repo checkout with: docker compose --env-file /opt/notes/.env up -d --build
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Express
+      MSSQL_SA_PASSWORD: ${SA_PASSWORD}
+    volumes:
+      - mssqldata:/var/opt/mssql
+      - ${BACKUP_DIR:-/opt/notes/backups}:/backups
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1" || exit 1
+      interval: 10s
+      retries: 12
+      start_period: 30s
+
+  db-init:
+    image: mcr.microsoft.com/mssql-tools18
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SA_PASSWORD: ${SA_PASSWORD}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+    volumes:
+      - ./backend/Database:/sql:ro
+      - ./deploy/db-init.sh:/db-init.sh:ro
+    entrypoint: ["/bin/bash", "/db-init.sh"]
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db-init:
+        condition: service_completed_successfully
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__SqlServer: "Server=db;Database=NotesAppDb;User Id=notesapp;Password=${APP_DB_PASSWORD};TrustServerCertificate=True"
+      Jwt__Secret: ${JWT_SECRET}
+      Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID}
+      Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET}
+      Cors__AllowedOrigins__0: https://notes.d4nthi.com
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+        VITE_API_URL: https://api.d4nthi.com
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - /opt/notes/cloudflared:/etc/cloudflared:ro
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  mssqldata:

@@ -27,8 +27,10 @@ export const translations = {
       restore: 'Restaurar',
       deletePermanently: 'Eliminar permanentemente',
       empty: 'No hay elementos',
+      confirmDeleteMany: '¿Eliminar {count} elementos?',
     },
     editor: {
+      export: 'Exportar',
       exportPdf: 'Exportar a PDF',
       exportPng: 'Exportar a PNG',
       exportJpg: 'Exportar a JPG',
@@ -94,8 +96,10 @@ export const translations = {
       restore: 'Restore',
       deletePermanently: 'Delete permanently',
       empty: 'No items',
+      confirmDeleteMany: 'Delete {count} items?',
     },
     editor: {
+      export: 'Export',
       exportPdf: 'Export to PDF',
       exportPng: 'Export to PNG',
       exportJpg: 'Export to JPG',

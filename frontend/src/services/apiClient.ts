@@ -12,6 +12,13 @@ export type AuthResponse = {
   user: UserDto;
 };
 
+/** Base URL of the API. Empty in dev (Vite proxy); e.g. https://api.d4nthi.com in production. */
+export const API_BASE_URL = ((import.meta.env.VITE_API_URL as string | undefined) ?? '').replace(/\/$/, '');
+
+export function apiUrl(path: string): string {
+  return `${API_BASE_URL}${path}`;
+}
+
 const ACCESS_TOKEN_KEY = 'notesapp.accessToken';
 const REFRESH_TOKEN_KEY = 'notesapp.refreshToken';
 
@@ -39,7 +46,7 @@ async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
 
-  const response = await fetch('/api/auth/refresh', {
+  const response = await fetch(apiUrl('/api/auth/refresh'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken }),
@@ -65,7 +72,8 @@ export async function apiFetch(input: string, init: RequestInit = {}): Promise<R
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
   if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
 
-  let response = await fetch(input, { ...init, headers });
+  const url = apiUrl(input);
+  let response = await fetch(url, { ...init, headers });
 
   if (response.status === 401) {
     refreshPromise ??= refreshAccessToken().finally(() => {
@@ -75,7 +83,10 @@ export async function apiFetch(input: string, init: RequestInit = {}): Promise<R
 
     if (newToken) {
       headers.set('Authorization', `Bearer ${newToken}`);
-      response = await fetch(input, { ...init, headers });
+      response = await fetch(url, { ...init, headers });
+    } else {
+      clearTokens();
+      if (window.location.pathname !== '/login') window.location.assign('/login');
     }
   }
 

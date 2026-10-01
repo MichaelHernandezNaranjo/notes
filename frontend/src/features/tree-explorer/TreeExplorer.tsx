@@ -6,17 +6,21 @@ import { ContextMenu, type ContextMenuState } from './ContextMenu';
 
 type SectionKey = 'recent' | 'favorites' | 'trash';
 
+const DRAG_MIME = 'text/node-ids';
+
 export type TreeExplorerProps = {
   onOpenNote: (nodeId: string) => void;
   activeNodeId: string | null;
 };
 
-/** VS Code style sidebar: fixed sections (Recent/Favorites/Trash) + nested folder tree with Drag & Drop. */
+/** VS Code style sidebar: fixed sections (Recent/Favorites/Trash) + nested folder tree with multi-selection and Drag & Drop. */
 export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
   const { t } = useI18n();
   const [rootNodes, setRootNodes] = useState<NodeDto[]>([]);
   const [childrenByParent, setChildrenByParent] = useState<Record<string, NodeDto[]>>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [anchorId, setAnchorId] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
     recent: true,
     favorites: true,
@@ -53,44 +57,182 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
     setChildrenByParent((prev) => ({ ...prev, [parentId]: children }));
   }, []);
 
+  /** Reloads the children lists of the given parents (null = root). */
+  const reloadParents = useCallback(
+    async (parentIds: Iterable<string | null>) => {
+      const unique = new Set(parentIds);
+      await Promise.all(
+        [...unique].map((id) => (id === null ? refreshRoot() : loadChildren(id))),
+      );
+    },
+    [loadChildren, refreshRoot],
+  );
+
+  // ---------- Derived lookups ----------
+  const nodeById = useMemo(() => {
+    const map = new Map<string, NodeDto>();
+    rootNodes.forEach((n) => map.set(n.id, n));
+    Object.values(childrenByParent).forEach((list) => list.forEach((n) => map.set(n.id, n)));
+    return map;
+  }, [rootNodes, childrenByParent]);
+
+  /** Node ids in the order they are rendered (needed for Shift+click ranges and arrow keys). */
+  const visibleIds = useMemo(() => {
+    const out: string[] = [];
+    const walk = (nodes: NodeDto[]) => {
+      for (const n of nodes) {
+        out.push(n.id);
+        if (n.type === 'Folder' && expanded.has(n.id)) walk(childrenByParent[n.id] ?? []);
+      }
+    };
+    walk(rootNodes);
+    return out;
+  }, [rootNodes, childrenByParent, expanded]);
+
+  const expandNode = useCallback(
+    async (nodeId: string) => {
+      setExpanded((prev) => new Set(prev).add(nodeId));
+      await loadChildren(nodeId);
+    },
+    [loadChildren],
+  );
+
   const toggleExpand = useCallback(
     async (nodeId: string) => {
+      const isOpen = expanded.has(nodeId);
       setExpanded((prev) => {
         const next = new Set(prev);
-        if (next.has(nodeId)) next.delete(nodeId);
+        if (isOpen) next.delete(nodeId);
         else next.add(nodeId);
         return next;
       });
-      if (!childrenByParent[nodeId]) {
-        await loadChildren(nodeId);
-      }
+      if (!isOpen && !childrenByParent[nodeId]) await loadChildren(nodeId);
     },
-    [childrenByParent, loadChildren],
+    [expanded, childrenByParent, loadChildren],
   );
+
+  // ---------- Selection ----------
+  const handleSelect = useCallback(
+    (e: React.MouseEvent, node: NodeDto) => {
+      setContextMenu(null);
+
+      if (e.ctrlKey || e.metaKey) {
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          if (next.has(node.id)) next.delete(node.id);
+          else next.add(node.id);
+          return next;
+        });
+        setAnchorId(node.id);
+        return;
+      }
+
+      if (e.shiftKey && anchorId) {
+        const from = visibleIds.indexOf(anchorId);
+        const to = visibleIds.indexOf(node.id);
+        if (from !== -1 && to !== -1) {
+          const [start, end] = from < to ? [from, to] : [to, from];
+          setSelectedIds(new Set(visibleIds.slice(start, end + 1)));
+          return;
+        }
+      }
+
+      setSelectedIds(new Set([node.id]));
+      setAnchorId(node.id);
+      if (node.type === 'Folder') void toggleExpand(node.id);
+      else onOpenNote(node.id);
+    },
+    [anchorId, visibleIds, toggleExpand, onOpenNote],
+  );
+
+  // ---------- Creation ----------
+  /** Folder selected -> inside it; note selected -> its parent folder; nothing -> root. */
+  const createTargetId = useMemo<string | null>(() => {
+    if (!anchorId || !selectedIds.has(anchorId)) return null;
+    const node = nodeById.get(anchorId);
+    if (!node) return null;
+    return node.type === 'Folder' ? node.id : node.parentId;
+  }, [anchorId, selectedIds, nodeById]);
 
   const handleCreate = useCallback(
     async (parentId: string | null, type: 'Folder' | 'Note') => {
       const name = type === 'Folder' ? t('tree.newFolder') : t('tree.newNote');
       await nodesApi.create(parentId, type, name);
-      if (parentId) await loadChildren(parentId);
-      else await refreshRoot();
+      if (parentId) {
+        await expandNode(parentId);
+      } else {
+        await refreshRoot();
+      }
     },
-    [loadChildren, refreshRoot, t],
+    [expandNode, refreshRoot, t],
+  );
+
+  // ---------- Drag & Drop ----------
+  const handleDragStartNode = useCallback(
+    (e: React.DragEvent, node: NodeDto) => {
+      const ids = selectedIds.has(node.id) ? [...selectedIds] : [node.id];
+      e.dataTransfer.setData(DRAG_MIME, JSON.stringify(ids));
+      e.dataTransfer.effectAllowed = 'move';
+    },
+    [selectedIds],
   );
 
   const handleDrop = useCallback(
-    async (draggedId: string, targetParentId: string | null) => {
-      if (draggedId === targetParentId) return;
-      await nodesApi.move(draggedId, targetParentId, null);
-      await refreshRoot();
-      setChildrenByParent({});
-      setExpanded(new Set());
+    async (ids: string[], targetParentId: string | null) => {
+      // Never move a node into itself or into one of its own descendants.
+      const isBlocked = (id: string) => {
+        let cursor: string | null = targetParentId;
+        while (cursor) {
+          if (cursor === id) return true;
+          cursor = nodeById.get(cursor)?.parentId ?? null;
+        }
+        return false;
+      };
+      const movable = ids.filter((id) => !isBlocked(id) && nodeById.get(id)?.parentId !== targetParentId);
+      if (movable.length === 0) return;
+
+      const oldParents = movable.map((id) => nodeById.get(id)?.parentId ?? null);
+      await Promise.all(movable.map((id) => nodesApi.move(id, targetParentId, null)));
+
+      if (targetParentId) setExpanded((prev) => new Set(prev).add(targetParentId));
+      await reloadParents([...oldParents, targetParentId]);
     },
-    [refreshRoot],
+    [nodeById, reloadParents],
+  );
+
+  const readDraggedIds = (e: React.DragEvent): string[] => {
+    try {
+      const parsed = JSON.parse(e.dataTransfer.getData(DRAG_MIME) || '[]');
+      return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+    } catch {
+      return [];
+    }
+  };
+
+  // ---------- Actions ----------
+  const deleteSelection = useCallback(
+    async (nodes: NodeDto[]) => {
+      if (nodes.length > 1 && !window.confirm(t('tree.confirmDeleteMany').replace('{count}', String(nodes.length)))) {
+        return;
+      }
+      await Promise.all(nodes.map((n) => nodesApi.softDelete(n.id)));
+      setSelectedIds(new Set());
+      setAnchorId(null);
+      await reloadParents(nodes.map((n) => n.parentId));
+      await refreshSections();
+    },
+    [reloadParents, refreshSections, t],
   );
 
   const handleAction = useCallback(
     async (action: string, node: NodeDto) => {
+      const targets =
+        selectedIds.has(node.id) && selectedIds.size > 1
+          ? [...selectedIds].map((id) => nodeById.get(id)).filter((n): n is NodeDto => !!n)
+          : [node];
+
+      setContextMenu(null);
+
       switch (action) {
         case 'rename': {
           const name = window.prompt(t('tree.rename'), node.name);
@@ -101,16 +243,16 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
           await nodesApi.duplicate(node.id);
           break;
         case 'delete':
-          await nodesApi.softDelete(node.id);
-          break;
+          await deleteSelection(targets);
+          return;
         case 'restore':
-          await nodesApi.restore(node.id);
+          await Promise.all(targets.map((n) => nodesApi.restore(n.id)));
           break;
         case 'deletePermanently':
-          await nodesApi.hardDelete(node.id);
+          await Promise.all(targets.map((n) => nodesApi.hardDelete(n.id)));
           break;
         case 'favorite':
-          await nodesApi.toggleFavorite(node.id);
+          await Promise.all(targets.map((n) => nodesApi.toggleFavorite(n.id)));
           break;
         case 'newNote':
           await handleCreate(node.id, 'Note');
@@ -121,12 +263,73 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
         default:
           break;
       }
-      setContextMenu(null);
-      await refreshRoot();
+      await reloadParents(targets.map((n) => n.parentId));
       await refreshSections();
-      if (node.parentId) await loadChildren(node.parentId);
     },
-    [handleCreate, loadChildren, refreshRoot, refreshSections, t],
+    [selectedIds, nodeById, deleteSelection, handleCreate, reloadParents, refreshSections, t],
+  );
+
+  // ---------- Keyboard ----------
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (visibleIds.length === 0) return;
+      const current = anchorId && visibleIds.includes(anchorId) ? anchorId : null;
+      const index = current ? visibleIds.indexOf(current) : -1;
+
+      const selectOnly = (id: string) => {
+        setSelectedIds(new Set([id]));
+        setAnchorId(id);
+      };
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        setSelectedIds(new Set(visibleIds));
+        return;
+      }
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          selectOnly(visibleIds[Math.min(index + 1, visibleIds.length - 1)]);
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          selectOnly(visibleIds[Math.max(index - 1, 0)]);
+          break;
+        case 'ArrowRight':
+          if (current && nodeById.get(current)?.type === 'Folder' && !expanded.has(current)) {
+            e.preventDefault();
+            void toggleExpand(current);
+          }
+          break;
+        case 'ArrowLeft':
+          if (current && expanded.has(current)) {
+            e.preventDefault();
+            void toggleExpand(current);
+          }
+          break;
+        case 'Enter': {
+          const node = current ? nodeById.get(current) : undefined;
+          if (node) {
+            e.preventDefault();
+            if (node.type === 'Folder') void toggleExpand(node.id);
+            else onOpenNote(node.id);
+          }
+          break;
+        }
+        case 'Delete': {
+          const nodes = [...selectedIds].map((id) => nodeById.get(id)).filter((n): n is NodeDto => !!n);
+          if (nodes.length > 0) {
+            e.preventDefault();
+            void deleteSelection(nodes);
+          }
+          break;
+        }
+        default:
+          break;
+      }
+    },
+    [visibleIds, anchorId, nodeById, expanded, selectedIds, toggleExpand, onOpenNote, deleteSelection],
   );
 
   const sections = useMemo(
@@ -141,14 +344,16 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
 
   return (
     <div
-      className="flex h-full flex-col overflow-y-auto bg-bg-elevated text-sm text-neutral-200"
+      className="flex h-full flex-col overflow-y-auto bg-bg-elevated text-sm text-neutral-800 outline-none"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
       onClick={() => setContextMenu(null)}
     >
       {sections.map((section) => (
         <div key={section.key} className="border-b border-border-subtle">
           <button
             type="button"
-            className="flex w-full items-center gap-2 px-3 py-2 font-medium text-neutral-300 hover:bg-white/5"
+            className="flex w-full items-center gap-2 px-3 py-2 font-medium text-neutral-700 hover:bg-black/5"
             onClick={() => setOpenSections((prev) => ({ ...prev, [section.key]: !prev[section.key] }))}
           >
             <span>{openSections[section.key] ? '▾' : '▸'}</span>
@@ -165,8 +370,9 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
                 <button
                   key={node.id}
                   type="button"
-                  onClick={() => onOpenNote(node.id)}
-                  className={`flex w-full items-center gap-2 px-6 py-1 text-left hover:bg-white/5 ${
+                  // Folders are not notes: they must never open the editor from these lists.
+                  onClick={() => node.type === 'Note' && onOpenNote(node.id)}
+                  className={`flex w-full items-center gap-2 px-6 py-1 text-left hover:bg-black/5 ${
                     activeNodeId === node.id ? 'bg-accent-blue/10 text-accent-blue' : ''
                   }`}
                 >
@@ -179,22 +385,33 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
         </div>
       ))}
 
-      <div className="flex items-center justify-between px-3 py-2 font-medium text-neutral-300">
-        <span>{t('nav.explorer')}</span>
+      <div className="flex items-center justify-between px-3 py-2 font-medium text-neutral-700">
+        <span>
+          {t('nav.explorer')}
+          {selectedIds.size > 1 && (
+            <span className="ml-2 text-xs font-normal text-neutral-500">({selectedIds.size})</span>
+          )}
+        </span>
         <div className="flex gap-1">
           <button
             type="button"
             title={t('tree.newNote')}
-            className="rounded px-1.5 hover:bg-white/10"
-            onClick={() => handleCreate(null, 'Note')}
+            className="rounded px-1.5 hover:bg-black/10"
+            onClick={(e) => {
+              e.stopPropagation();
+              void handleCreate(createTargetId, 'Note');
+            }}
           >
             📝+
           </button>
           <button
             type="button"
             title={t('tree.newFolder')}
-            className="rounded px-1.5 hover:bg-white/10"
-            onClick={() => handleCreate(null, 'Folder')}
+            className="rounded px-1.5 hover:bg-black/10"
+            onClick={(e) => {
+              e.stopPropagation();
+              void handleCreate(createTargetId, 'Folder');
+            }}
           >
             📁+
           </button>
@@ -202,12 +419,18 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
       </div>
 
       <div
+        role="tree"
+        aria-multiselectable="true"
         className="flex-1"
+        onClick={() => {
+          setSelectedIds(new Set());
+          setAnchorId(null);
+        }}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
-          const draggedId = e.dataTransfer.getData('text/node-id');
-          if (draggedId) handleDrop(draggedId, null);
+          const ids = readDraggedIds(e);
+          if (ids.length > 0) void handleDrop(ids, null);
         }}
       >
         {rootNodes.map((node) => (
@@ -218,13 +441,22 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
             isExpanded={expanded.has(node.id)}
             childrenNodes={childrenByParent[node.id] ?? []}
             activeNodeId={activeNodeId}
-            onToggleExpand={toggleExpand}
-            onOpenNote={onOpenNote}
-            onDrop={handleDrop}
+            selectedIds={selectedIds}
+            onSelect={handleSelect}
+            onDragStartNode={handleDragStartNode}
+            onDropOnFolder={(e, targetId) => {
+              const ids = readDraggedIds(e);
+              if (ids.length > 0) void handleDrop(ids, targetId);
+            }}
             onContextMenu={(e, targetNode) => {
               e.preventDefault();
               e.stopPropagation();
-              setContextMenu({ x: e.clientX, y: e.clientY, node: targetNode });
+              if (!selectedIds.has(targetNode.id)) {
+                setSelectedIds(new Set([targetNode.id]));
+                setAnchorId(targetNode.id);
+              }
+              const count = selectedIds.has(targetNode.id) ? selectedIds.size : 1;
+              setContextMenu({ x: e.clientX, y: e.clientY, node: targetNode, count });
             }}
             childrenByParent={childrenByParent}
             expanded={expanded}

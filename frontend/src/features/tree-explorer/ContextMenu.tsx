@@ -1,7 +1,7 @@
 import { useI18n } from '../../i18n/I18nProvider';
 import type { NodeDto } from '../../services/nodesApi';
 
-export type ContextMenuState = { x: number; y: number; node: NodeDto };
+export type ContextMenuState = { x: number; y: number; node: NodeDto; count: number };
 
 type ContextMenuProps = {
   state: ContextMenuState;
@@ -14,13 +14,19 @@ export function ContextMenu({ state, onAction, onClose }: ContextMenuProps) {
   const { t } = useI18n();
   const { node } = state;
   const isTrashed = node.isDeleted;
+  const isMulti = state.count > 1;
 
   const items: Array<{ action: string; label: string }> = isTrashed
     ? [
         { action: 'restore', label: t('tree.restore') },
         { action: 'deletePermanently', label: t('tree.deletePermanently') },
       ]
-    : [
+    : isMulti
+      ? [
+          { action: 'favorite', label: node.isFavorite ? '★ / ☆' : '☆ / ★' },
+          { action: 'delete', label: `${t('tree.delete')} (${state.count})` },
+        ]
+      : [
         ...(node.type === 'Folder'
           ? [
               { action: 'newNote', label: t('tree.newNote') },
@@ -43,7 +49,7 @@ export function ContextMenu({ state, onAction, onClose }: ContextMenuProps) {
         <button
           key={item.action}
           type="button"
-          className="block w-full px-3 py-1.5 text-left text-sm hover:bg-white/10"
+          className="block w-full px-3 py-1.5 text-left text-sm hover:bg-black/10"
           onClick={() => {
             onAction(item.action, node);
             onClose();

@@ -10,7 +10,7 @@ export function GoogleLoginButton() {
     <button
       type="button"
       onClick={loginWithGoogle}
-      className="flex items-center gap-3 rounded-lg border border-border-subtle bg-bg-elevated px-5 py-3 text-sm font-medium text-white transition hover:border-accent-blue hover:shadow-[0_0_0_1px_var(--color-accent-blue)]"
+      className="flex items-center gap-3 rounded-lg border border-border-subtle bg-bg-elevated px-5 py-3 text-sm font-medium text-neutral-900 transition hover:border-accent-blue hover:shadow-[0_0_0_1px_var(--color-accent-blue)]"
     >
       <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
         <path

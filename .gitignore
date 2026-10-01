@@ -16,3 +16,7 @@ frontend/*.local
 .vs/
 .vscode/
 *.log
+
+## deploy / secrets
+.env
+/deploy/*.local

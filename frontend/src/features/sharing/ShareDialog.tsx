@@ -39,7 +39,7 @@ export function ShareDialog({ nodeId, onClose }: ShareDialogProps) {
         className="w-full max-w-md rounded-lg border border-border-subtle bg-bg-elevated p-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="mb-4 text-lg font-medium text-white">{t('sharing.title')}</h3>
+        <h3 className="mb-4 text-lg font-medium text-neutral-900">{t('sharing.title')}</h3>
 
         <div className="mb-4 flex items-center gap-2">
           <select
@@ -91,7 +91,7 @@ export function ShareDialog({ nodeId, onClose }: ShareDialogProps) {
 
         <button
           type="button"
-          className="mt-4 w-full rounded border border-border-subtle py-1.5 text-sm hover:bg-white/5"
+          className="mt-4 w-full rounded border border-border-subtle py-1.5 text-sm hover:bg-black/5"
           onClick={onClose}
         >
           {t('common.cancel')}

@@ -36,7 +36,7 @@ export function GroupsPage() {
   return (
     <div className="flex h-full">
       <div className="w-72 border-r border-border-subtle p-4">
-        <h2 className="mb-3 text-lg font-medium text-white">{t('groups.title')}</h2>
+        <h2 className="mb-3 text-lg font-medium text-neutral-900">{t('groups.title')}</h2>
         <div className="mb-3 flex gap-2">
           <input
             className="flex-1 rounded border border-border-subtle bg-bg-elevated px-2 py-1 text-sm"
@@ -57,7 +57,7 @@ export function GroupsPage() {
             <button
               key={group.id}
               type="button"
-              className={`block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-white/5 ${
+              className={`block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-black/5 ${
                 selectedGroupId === group.id ? 'bg-accent-blue/10 text-accent-blue' : ''
               }`}
               onClick={() => setSelectedGroupId(group.id)}
@@ -71,7 +71,7 @@ export function GroupsPage() {
       <div className="flex-1 p-6">
         {selectedGroupId ? (
           <>
-            <h3 className="mb-4 text-base font-medium text-white">{t('groups.members')}</h3>
+            <h3 className="mb-4 text-base font-medium text-neutral-900">{t('groups.members')}</h3>
             <div className="space-y-2">
               {members.map((member) => (
                 <div
@@ -79,7 +79,7 @@ export function GroupsPage() {
                   className="flex items-center justify-between rounded border border-border-subtle px-3 py-2 text-sm"
                 >
                   <span>{member.displayName} · {member.email}</span>
-                  <span className="text-xs text-neutral-400">{member.role}</span>
+                  <span className="text-xs text-neutral-600">{member.role}</span>
                 </div>
               ))}
             </div>
