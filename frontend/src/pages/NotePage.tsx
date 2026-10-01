@@ -19,17 +19,17 @@ export function NotePage() {
   }, [nodeId]);
 
   return (
-    <div className="flex h-full">
-      <aside className="w-72 shrink-0 border-r border-border-subtle">
-        <TreeExplorer activeNodeId={nodeId ?? null} onOpenNote={(id) => navigate(`/notes/${id}`)} />
+    <div className="flex h-full min-h-0">
+      <aside className="h-full w-72 shrink-0 border-r border-border-subtle">
+        <TreeExplorer
+          activeNodeId={nodeId ?? null}
+          onOpenNote={(id) => navigate(`/notes/${id}`)}
+          onRenamed={(id, name) => id === nodeId && setNoteName(name)}
+        />
       </aside>
-      <main className="flex-1">
+      <main className="h-full min-h-0 min-w-0 flex-1">
         {nodeId ? (
-          <div className="flex h-full flex-col">
-            <div className="flex-1">
-              <CollaborativeEditor key={nodeId} nodeId={nodeId} noteName={noteName} onShare={() => setShareOpen(true)} />
-            </div>
-          </div>
+          <CollaborativeEditor key={nodeId} nodeId={nodeId} noteName={noteName} onShare={() => setShareOpen(true)} />
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-neutral-500">
             Selecciona o crea una nota para comenzar

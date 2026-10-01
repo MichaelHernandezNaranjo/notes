@@ -11,6 +11,7 @@ import { exportNoteAsImage, exportNoteAsPdf } from './exportNote';
 import { EditorToolbar } from './EditorToolbar';
 import { YjsSignalRProvider, type PresenceUser } from './YjsSignalRProvider';
 
+const LOAD_TIMEOUT_MS = 10000;
 const COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444'];
 
 function colorForUser(id: string): string {
@@ -36,6 +37,8 @@ export function CollaborativeEditor({ nodeId, noteName, onShare }: Collaborative
   const containerRef = useRef<HTMLDivElement>(null);
   const [presence, setPresence] = useState<PresenceUser[]>([]);
   const [saveState, setSaveState] = useState<'saved' | 'saving'>('saved');
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [attempt, setAttempt] = useState(0);
 
   const ydocRef = useRef<Y.Doc>(new Y.Doc());
   const providerRef = useRef<YjsSignalRProvider | null>(null);
@@ -60,7 +63,17 @@ export function CollaborativeEditor({ nodeId, noteName, onShare }: Collaborative
   useEffect(() => {
     const provider = providerRef.current!;
     provider.onPresenceUpdate(setPresence);
-    provider.connect().catch(console.error);
+    provider.onSynced(() => setLoadState('ready'));
+    if (provider.isSynced) setLoadState('ready');
+
+    // Never leave the skeleton up forever: fail after a timeout or a connection error.
+    const timeout = setTimeout(() => {
+      if (!provider.isSynced) setLoadState('error');
+    }, LOAD_TIMEOUT_MS);
+    provider.connect().catch((error) => {
+      console.error(error);
+      setLoadState('error');
+    });
 
     const onUpdate = () => {
       setSaveState('saving');
@@ -70,13 +83,19 @@ export function CollaborativeEditor({ nodeId, noteName, onShare }: Collaborative
     ydocRef.current.on('update', onUpdate);
 
     return () => {
+      clearTimeout(timeout);
       ydocRef.current.off('update', onUpdate);
       provider.disconnect().catch(console.error);
     };
-  }, [nodeId]);
+  }, [nodeId, attempt]);
+
+  const retry = () => {
+    setLoadState('loading');
+    setAttempt((n) => n + 1);
+  };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <EditorToolbar
         title={noteName || t('editor.untitled')}
         saveState={saveState}
@@ -87,8 +106,38 @@ export function CollaborativeEditor({ nodeId, noteName, onShare }: Collaborative
         onExportJpg={() => containerRef.current && exportNoteAsImage(containerRef.current, noteName || 'note', 'jpeg')}
       />
 
-      <div ref={containerRef} className="flex-1 overflow-y-auto bg-bg-base px-6 py-4">
-        <BlockNoteView editor={editor} theme="light" />
+      <div className="relative min-h-0 flex-1">
+        <div ref={containerRef} className="h-full overflow-y-auto bg-bg-base px-6 py-4">
+          <BlockNoteView editor={editor} theme="light" />
+        </div>
+
+        {loadState !== 'ready' && (
+          <div className="absolute inset-0 z-10 overflow-hidden bg-bg-base px-6 py-4" role="status" aria-live="polite">
+            {loadState === 'error' ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-neutral-700">
+                <p>{t('editor.loadError')}</p>
+                <button
+                  type="button"
+                  onClick={retry}
+                  className="rounded-md bg-accent-blue px-3 py-1.5 text-white hover:bg-accent-blue-dark"
+                >
+                  {t('editor.retry')}
+                </button>
+              </div>
+            ) : (
+              <div className="mx-auto max-w-3xl animate-pulse space-y-4 pt-4" aria-label={t('common.loading')}>
+                <div className="h-8 w-2/5 rounded bg-neutral-200" />
+                <div className="h-4 w-full rounded bg-neutral-200" />
+                <div className="h-4 w-11/12 rounded bg-neutral-200" />
+                <div className="h-4 w-4/5 rounded bg-neutral-200" />
+                <div className="h-6 w-1/3 rounded bg-neutral-200" />
+                <div className="h-4 w-full rounded bg-neutral-200" />
+                <div className="h-4 w-10/12 rounded bg-neutral-200" />
+                <div className="h-4 w-2/3 rounded bg-neutral-200" />
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

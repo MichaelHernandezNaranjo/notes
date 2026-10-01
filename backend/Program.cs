@@ -123,6 +123,12 @@ app.Use(async (context, next) =>
     {
         await next();
     }
+    catch (Microsoft.Data.SqlClient.SqlException ex) when (!context.Response.HasStarted && (ex.Number == 50001 || ex.Number == 50002))
+    {
+        // 50001 = duplicate sibling name, 50002 = empty name (raised by the Node stored procedures).
+        context.Response.StatusCode = ex.Number == 50001 ? StatusCodes.Status409Conflict : StatusCodes.Status400BadRequest;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message, code = ex.Number == 50001 ? "duplicate_name" : "empty_name" });
+    }
     catch (UnauthorizedAccessException ex) when (!context.Response.HasStarted)
     {
         var isAuthenticated = context.User.Identity?.IsAuthenticated == true;

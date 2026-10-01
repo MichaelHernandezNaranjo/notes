@@ -9,8 +9,23 @@ CREATE OR ALTER PROCEDURE dbo.sp_Node_Create
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
     DECLARE @NewId UNIQUEIDENTIFIER = NEWID();
     DECLARE @NextSort INT;
+    SET @Name = LTRIM(RTRIM(@Name));
+
+    IF @Name = N'' THROW 50002, 'Name cannot be empty.', 1;
+
+    BEGIN TRAN;
+
+    -- Siblings share one namespace (notes + folders), case-insensitive; trashed items do not count.
+    IF EXISTS (SELECT 1 FROM dbo.Nodes WITH (UPDLOCK, HOLDLOCK)
+               WHERE ISNULL(ParentId, '00000000-0000-0000-0000-000000000000') = ISNULL(@ParentId, '00000000-0000-0000-0000-000000000000')
+                 AND IsDeleted = 0 AND Name = @Name)
+    BEGIN
+        ROLLBACK TRAN;
+        THROW 50001, 'A node with this name already exists in this folder.', 1;
+    END
 
     SELECT @NextSort = ISNULL(MAX(SortOrder), 0) + 1
     FROM dbo.Nodes
@@ -19,6 +34,8 @@ BEGIN
 
     INSERT INTO dbo.Nodes (Id, ParentId, OwnerId, Type, Name, SortOrder)
     VALUES (@NewId, @ParentId, @OwnerId, @Type, @Name, @NextSort);
+
+    COMMIT TRAN;
 
     SELECT * FROM dbo.Nodes WHERE Id = @NewId;
 END
@@ -30,9 +47,27 @@ CREATE OR ALTER PROCEDURE dbo.sp_Node_Rename
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    SET @Name = LTRIM(RTRIM(@Name));
+
+    IF @Name = N'' THROW 50002, 'Name cannot be empty.', 1;
+
+    BEGIN TRAN;
+
+    IF EXISTS (SELECT 1 FROM dbo.Nodes s WITH (UPDLOCK, HOLDLOCK)
+               INNER JOIN dbo.Nodes me ON me.Id = @NodeId
+               WHERE ISNULL(s.ParentId, '00000000-0000-0000-0000-000000000000') = ISNULL(me.ParentId, '00000000-0000-0000-0000-000000000000')
+                 AND s.IsDeleted = 0 AND s.Id <> @NodeId AND s.Name = @Name)
+    BEGIN
+        ROLLBACK TRAN;
+        THROW 50001, 'A node with this name already exists in this folder.', 1;
+    END
+
     UPDATE dbo.Nodes
     SET Name = @Name, UpdatedAt = SYSUTCDATETIME()
     WHERE Id = @NodeId;
+
+    COMMIT TRAN;
 
     SELECT * FROM dbo.Nodes WHERE Id = @NodeId;
 END
@@ -45,6 +80,18 @@ CREATE OR ALTER PROCEDURE dbo.sp_Node_Move
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    BEGIN TRAN;
+
+    IF EXISTS (SELECT 1 FROM dbo.Nodes s WITH (UPDLOCK, HOLDLOCK)
+               INNER JOIN dbo.Nodes me ON me.Id = @NodeId
+               WHERE ISNULL(s.ParentId, '00000000-0000-0000-0000-000000000000') = ISNULL(@NewParentId, '00000000-0000-0000-0000-000000000000')
+                 AND s.IsDeleted = 0 AND s.Id <> @NodeId AND s.Name = me.Name)
+    BEGIN
+        ROLLBACK TRAN;
+        THROW 50001, 'A node with this name already exists in this folder.', 1;
+    END
 
     DECLARE @Sort INT = @NewSortOrder;
     IF @Sort IS NULL
@@ -59,6 +106,8 @@ BEGIN
     SET ParentId = @NewParentId, SortOrder = @Sort, UpdatedAt = SYSUTCDATETIME()
     WHERE Id = @NodeId;
 
+    COMMIT TRAN;
+
     SELECT * FROM dbo.Nodes WHERE Id = @NodeId;
 END
 GO
@@ -69,14 +118,32 @@ CREATE OR ALTER PROCEDURE dbo.sp_Node_Duplicate
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
     DECLARE @NewId UNIQUEIDENTIFIER = NEWID();
+    DECLARE @ParentId UNIQUEIDENTIFIER, @BaseName NVARCHAR(300), @NewName NVARCHAR(300), @N INT = 1;
+
+    BEGIN TRAN;
+
+    SELECT @ParentId = ParentId, @BaseName = Name FROM dbo.Nodes WHERE Id = @NodeId;
+
+    -- First free name: "X (copy)", "X (copy 2)", "X (copy 3)", ...
+    SET @NewName = LEFT(@BaseName, 280) + N' (copy)';
+    WHILE EXISTS (SELECT 1 FROM dbo.Nodes WITH (UPDLOCK, HOLDLOCK)
+                  WHERE ISNULL(ParentId, '00000000-0000-0000-0000-000000000000') = ISNULL(@ParentId, '00000000-0000-0000-0000-000000000000')
+                    AND IsDeleted = 0 AND Name = @NewName)
+    BEGIN
+        SET @N += 1;
+        SET @NewName = LEFT(@BaseName, 270) + N' (copy ' + CAST(@N AS NVARCHAR(10)) + N')';
+    END
 
     INSERT INTO dbo.Nodes (Id, ParentId, OwnerId, Type, Name, ContentJson, ContentYjsState, SortOrder)
-    SELECT @NewId, ParentId, @OwnerId, Type, Name + N' (copy)', ContentJson, ContentYjsState,
+    SELECT @NewId, ParentId, @OwnerId, Type, @NewName, ContentJson, ContentYjsState,
            (SELECT ISNULL(MAX(SortOrder), 0) + 1 FROM dbo.Nodes n2
             WHERE ISNULL(n2.ParentId, '00000000-0000-0000-0000-000000000000') = ISNULL(n.ParentId, '00000000-0000-0000-0000-000000000000') AND n2.IsDeleted = 0)
     FROM dbo.Nodes n
     WHERE n.Id = @NodeId;
+
+    COMMIT TRAN;
 
     SELECT * FROM dbo.Nodes WHERE Id = @NewId;
 END
@@ -103,6 +170,15 @@ CREATE OR ALTER PROCEDURE dbo.sp_Node_Restore
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    -- Restoring must not collide with a live sibling of the same name.
+    IF EXISTS (SELECT 1 FROM dbo.Nodes s
+               INNER JOIN dbo.Nodes me ON me.Id = @NodeId
+               WHERE ISNULL(s.ParentId, '00000000-0000-0000-0000-000000000000') = ISNULL(me.ParentId, '00000000-0000-0000-0000-000000000000')
+                 AND s.IsDeleted = 0 AND s.Id <> @NodeId AND s.Name = me.Name)
+        THROW 50001, 'A node with this name already exists in this folder.', 1;
+
     ;WITH Descendants AS (
         SELECT Id FROM dbo.Nodes WHERE Id = @NodeId
         UNION ALL

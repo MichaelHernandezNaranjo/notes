@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { nodesApi, type NodeDto } from '../../services/nodesApi';
 import { useI18n } from '../../i18n/I18nProvider';
-import { TreeNode } from './TreeNode';
+import { TreeNode, type DraftNode } from './TreeNode';
+import { InlineNameInput } from './InlineNameInput';
 import { ContextMenu, type ContextMenuState } from './ContextMenu';
 
 type SectionKey = 'recent' | 'favorites' | 'trash';
@@ -11,10 +12,12 @@ const DRAG_MIME = 'text/node-ids';
 export type TreeExplorerProps = {
   onOpenNote: (nodeId: string) => void;
   activeNodeId: string | null;
+  /** Called after a node is renamed so open views (e.g. the editor title) can refresh. */
+  onRenamed?: (nodeId: string, name: string) => void;
 };
 
 /** VS Code style sidebar: fixed sections (Recent/Favorites/Trash) + nested folder tree with multi-selection and Drag & Drop. */
-export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
+export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed }: TreeExplorerProps) {
   const { t } = useI18n();
   const [rootNodes, setRootNodes] = useState<NodeDto[]>([]);
   const [childrenByParent, setChildrenByParent] = useState<Record<string, NodeDto[]>>({});
@@ -32,6 +35,8 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
     trash: [],
   });
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [draft, setDraft] = useState<DraftNode | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const refreshRoot = useCallback(async () => {
     const children = await nodesApi.getChildren(null);
@@ -154,18 +159,81 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
     return node.type === 'Folder' ? node.id : node.parentId;
   }, [anchorId, selectedIds, nodeById]);
 
-  const handleCreate = useCallback(
+  /** Lower-cased names of the live children of a folder (null = root), for duplicate detection. */
+  const siblingNames = useCallback(
+    (parentId: string | null): Set<string> => {
+      const list = parentId === null ? rootNodes : (childrenByParent[parentId] ?? []);
+      return new Set(list.map((n) => n.name.trim().toLowerCase()));
+    },
+    [rootNodes, childrenByParent],
+  );
+
+  /** Turns an API error into a user-facing message (409 = duplicate name). */
+  const describeError = useCallback(
+    (e: unknown, fallbackKey: string): Error => {
+      const message = e instanceof Error ? e.message : '';
+      if (message.includes('API error 409')) return new Error(t(fallbackKey));
+      if (message.includes('API error 400')) return new Error(t('tree.nameEmpty'));
+      return e instanceof Error ? e : new Error(t(fallbackKey));
+    },
+    [t],
+  );
+
+  /** Opens the inline "new item" row in the target folder (expanded) or at the root. */
+  const startCreate = useCallback(
     async (parentId: string | null, type: 'Folder' | 'Note') => {
-      const name = type === 'Folder' ? t('tree.newFolder') : t('tree.newNote');
-      await nodesApi.create(parentId, type, name);
-      if (parentId) {
-        await expandNode(parentId);
-      } else {
-        await refreshRoot();
+      setEditingId(null);
+      if (parentId && !expanded.has(parentId)) await expandNode(parentId);
+      setDraft({ parentId, type });
+    },
+    [expanded, expandNode],
+  );
+
+  const submitDraft = useCallback(
+    async (name: string) => {
+      if (!draft) return;
+      try {
+        const created = await nodesApi.create(draft.parentId, draft.type, name);
+        setDraft(null);
+        if (draft.parentId) await loadChildren(draft.parentId);
+        else await refreshRoot();
+        setSelectedIds(new Set([created.id]));
+        setAnchorId(created.id);
+        if (created.type === 'Note') onOpenNote(created.id);
+        void refreshSections();
+      } catch (e) {
+        throw describeError(e, 'tree.nameExists');
       }
     },
-    [expandNode, refreshRoot, t],
+    [draft, loadChildren, refreshRoot, refreshSections, onOpenNote, describeError],
   );
+
+  const submitRename = useCallback(
+    async (node: NodeDto, name: string) => {
+      try {
+        await nodesApi.rename(node.id, name);
+        setEditingId(null);
+        await reloadParents([node.parentId]);
+        void refreshSections();
+        onRenamed?.(node.id, name);
+      } catch (e) {
+        throw describeError(e, 'tree.nameExists');
+      }
+    },
+    [reloadParents, refreshSections, onRenamed, describeError],
+  );
+
+  const cancelEdit = useCallback(() => {
+    setDraft(null);
+    setEditingId(null);
+  }, []);
+
+  const startRename = useCallback((node: NodeDto) => {
+    setDraft(null);
+    setSelectedIds(new Set([node.id]));
+    setAnchorId(node.id);
+    setEditingId(node.id);
+  }, []);
 
   // ---------- Drag & Drop ----------
   const handleDragStartNode = useCallback(
@@ -192,12 +260,13 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
       if (movable.length === 0) return;
 
       const oldParents = movable.map((id) => nodeById.get(id)?.parentId ?? null);
-      await Promise.all(movable.map((id) => nodesApi.move(id, targetParentId, null)));
+      const results = await Promise.allSettled(movable.map((id) => nodesApi.move(id, targetParentId, null)));
+      if (results.some((r) => r.status === 'rejected')) window.alert(t('tree.moveConflict'));
 
       if (targetParentId) setExpanded((prev) => new Set(prev).add(targetParentId));
       await reloadParents([...oldParents, targetParentId]);
     },
-    [nodeById, reloadParents],
+    [nodeById, reloadParents, t],
   );
 
   const readDraggedIds = (e: React.DragEvent): string[] => {
@@ -234,20 +303,20 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
       setContextMenu(null);
 
       switch (action) {
-        case 'rename': {
-          const name = window.prompt(t('tree.rename'), node.name);
-          if (name && name !== node.name) await nodesApi.rename(node.id, name);
-          break;
-        }
+        case 'rename':
+          startRename(node);
+          return;
         case 'duplicate':
           await nodesApi.duplicate(node.id);
           break;
         case 'delete':
           await deleteSelection(targets);
           return;
-        case 'restore':
-          await Promise.all(targets.map((n) => nodesApi.restore(n.id)));
+        case 'restore': {
+          const results = await Promise.allSettled(targets.map((n) => nodesApi.restore(n.id)));
+          if (results.some((r) => r.status === 'rejected')) window.alert(t('tree.restoreConflict'));
           break;
+        }
         case 'deletePermanently':
           await Promise.all(targets.map((n) => nodesApi.hardDelete(n.id)));
           break;
@@ -255,18 +324,18 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
           await Promise.all(targets.map((n) => nodesApi.toggleFavorite(n.id)));
           break;
         case 'newNote':
-          await handleCreate(node.id, 'Note');
-          break;
+          await startCreate(node.id, 'Note');
+          return;
         case 'newFolder':
-          await handleCreate(node.id, 'Folder');
-          break;
+          await startCreate(node.id, 'Folder');
+          return;
         default:
           break;
       }
       await reloadParents(targets.map((n) => n.parentId));
       await refreshSections();
     },
-    [selectedIds, nodeById, deleteSelection, handleCreate, reloadParents, refreshSections, t],
+    [selectedIds, nodeById, deleteSelection, startCreate, startRename, reloadParents, refreshSections, t],
   );
 
   // ---------- Keyboard ----------
@@ -325,11 +394,19 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
           }
           break;
         }
+        case 'F2': {
+          const node = current ? nodeById.get(current) : undefined;
+          if (node) {
+            e.preventDefault();
+            startRename(node);
+          }
+          break;
+        }
         default:
           break;
       }
     },
-    [visibleIds, anchorId, nodeById, expanded, selectedIds, toggleExpand, onOpenNote, deleteSelection],
+    [visibleIds, anchorId, nodeById, expanded, selectedIds, toggleExpand, onOpenNote, deleteSelection, startRename],
   );
 
   const sections = useMemo(
@@ -399,7 +476,7 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
             className="rounded px-1.5 hover:bg-black/10"
             onClick={(e) => {
               e.stopPropagation();
-              void handleCreate(createTargetId, 'Note');
+              void startCreate(createTargetId, 'Note');
             }}
           >
             📝+
@@ -410,7 +487,7 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
             className="rounded px-1.5 hover:bg-black/10"
             onClick={(e) => {
               e.stopPropagation();
-              void handleCreate(createTargetId, 'Folder');
+              void startCreate(createTargetId, 'Folder');
             }}
           >
             📁+
@@ -433,6 +510,13 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
           if (ids.length > 0) void handleDrop(ids, null);
         }}
       >
+        {draft && draft.parentId === null && (
+          <div style={{ paddingLeft: 12 }} className="flex items-center gap-1.5 py-1 pr-2">
+            <span className="w-3" />
+            <span>{draft.type === 'Folder' ? '📁' : '📝'}</span>
+            <InlineNameInput takenNames={siblingNames(null)} onSubmit={submitDraft} onCancel={cancelEdit} />
+          </div>
+        )}
         {rootNodes.map((node) => (
           <TreeNode
             key={node.id}
@@ -460,6 +544,13 @@ export function TreeExplorer({ onOpenNote, activeNodeId }: TreeExplorerProps) {
             }}
             childrenByParent={childrenByParent}
             expanded={expanded}
+            editingId={editingId}
+            draft={draft}
+            siblingNames={siblingNames}
+            onStartRename={startRename}
+            onSubmitRename={submitRename}
+            onSubmitDraft={submitDraft}
+            onCancelEdit={cancelEdit}
           />
         ))}
       </div>

@@ -45,6 +45,7 @@ export class YjsSignalRProvider {
   private connection: signalR.HubConnection | null = null;
   private readonly nodeId: string;
   private onPresenceChange: ((users: PresenceUser[]) => void) | null = null;
+  private onSyncedChange: (() => void) | null = null;
   private readonly presence = new Map<string, string>();
 
   /** True once `disconnect()` has been requested; guards against completing a stale `connect()`. */
@@ -92,6 +93,15 @@ export class YjsSignalRProvider {
 
   onPresenceUpdate(callback: (users: PresenceUser[]) => void) {
     this.onPresenceChange = callback;
+  }
+
+  /** Fires once the server state has been applied (note content is ready). */
+  onSynced(callback: () => void) {
+    this.onSyncedChange = callback;
+  }
+
+  get isSynced(): boolean {
+    return this.synced;
   }
 
   /** Only invokes a hub method when the connection is actually established; swallows expected races silently. */
@@ -144,6 +154,7 @@ export class YjsSignalRProvider {
         Y.applyUpdate(this.doc, bytes, this);
       }
       this.synced = true;
+      this.onSyncedChange?.();
     });
 
     connection.on('ReceiveYjsUpdate', (_nodeId: string, update: string) => {
