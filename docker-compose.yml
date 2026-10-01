@@ -17,7 +17,9 @@ services:
       start_period: 30s
 
   db-init:
-    image: mcr.microsoft.com/mssql-tools18
+    # sqlcmd ships inside the server image (/opt/mssql-tools18); no separate tools image exists on MCR.
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    user: root
     restart: "no"
     depends_on:
       db:
