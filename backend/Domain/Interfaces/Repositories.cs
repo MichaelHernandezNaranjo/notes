@@ -64,3 +64,10 @@ public interface IAuditRepository
     Task InsertAsync(Guid userId, Guid? nodeId, string action, string? metadataJson);
     Task<IEnumerable<AuditLogEntry>> GetByNodeAsync(Guid nodeId, int top);
 }
+
+public interface IFileRepository
+{
+    Task<NodeFile> CreateAsync(Guid nodeId, string storedName, string originalName, string contentType, long sizeBytes, Guid createdBy);
+    Task<NodeFile?> GetByIdAsync(Guid fileId);
+    Task<IEnumerable<NodeFile>> ListByNodeTreeAsync(Guid nodeId);
+}

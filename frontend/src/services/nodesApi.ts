@@ -15,6 +15,10 @@ export type NodeDto = {
   createdAt: string;
   updatedAt: string;
   isFavorite: boolean;
+  /** Ancestor names (root first); only set for trash listings. */
+  path?: string | null;
+  /** Highest trashed ancestor (or itself); only set for trash listings. */
+  deletedRootId?: string | null;
 };
 
 export const nodesApi = {

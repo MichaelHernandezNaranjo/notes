@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { nodesApi, type NodeDto } from '../../services/nodesApi';
 import { useI18n } from '../../i18n/I18nProvider';
 import { TreeNode, type DraftNode } from './TreeNode';
@@ -14,14 +14,33 @@ export type TreeExplorerProps = {
   activeNodeId: string | null;
   /** Called after a node is renamed so open views (e.g. the editor title) can refresh. */
   onRenamed?: (nodeId: string, name: string) => void;
+  /** Changing this value forces a full reload of the tree and sections (e.g. after restoring from the editor). */
+  refreshToken?: number;
 };
 
+/** Trash order: each trashed root first, then its trashed descendants nested below it. */
+function orderTrash(items: NodeDto[]): Array<{ node: NodeDto; nested: boolean }> {
+  const ids = new Set(items.map((n) => n.id));
+  const roots = items.filter((n) => !n.deletedRootId || n.deletedRootId === n.id || !ids.has(n.deletedRootId));
+  const out: Array<{ node: NodeDto; nested: boolean }> = [];
+  for (const root of roots) {
+    out.push({ node: root, nested: false });
+    items
+      .filter((n) => n.id !== root.id && n.deletedRootId === root.id)
+      .sort((a, b) => ((a.path ?? '') + a.name).localeCompare((b.path ?? '') + b.name))
+      .forEach((child) => out.push({ node: child, nested: true }));
+  }
+  return out;
+}
+
 /** VS Code style sidebar: fixed sections (Recent/Favorites/Trash) + nested folder tree with multi-selection and Drag & Drop. */
-export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed }: TreeExplorerProps) {
+export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken = 0 }: TreeExplorerProps) {
   const { t } = useI18n();
   const [rootNodes, setRootNodes] = useState<NodeDto[]>([]);
   const [childrenByParent, setChildrenByParent] = useState<Record<string, NodeDto[]>>({});
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const expandedRef = useRef(expanded);
+  expandedRef.current = expanded;
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [anchorId, setAnchorId] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
@@ -57,10 +76,26 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed }: TreeExplor
     refreshSections();
   }, [refreshRoot, refreshSections]);
 
+
+
   const loadChildren = useCallback(async (parentId: string) => {
     const children = await nodesApi.getChildren(parentId);
     setChildrenByParent((prev) => ({ ...prev, [parentId]: children }));
   }, []);
+
+  /** Reloads root, every expanded folder and the side sections (used after restore). */
+  const fullRefresh = useCallback(async () => {
+    await Promise.all([refreshRoot(), refreshSections(), ...[...expandedRef.current].map((id) => loadChildren(id))]);
+  }, [refreshRoot, refreshSections, loadChildren]);
+
+  const firstRefresh = useRef(true);
+  useEffect(() => {
+    if (firstRefresh.current) {
+      firstRefresh.current = false;
+      return;
+    }
+    void fullRefresh();
+  }, [refreshToken, fullRefresh]);
 
   /** Reloads the children lists of the given parents (null = root). */
   const reloadParents = useCallback(
@@ -315,7 +350,9 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed }: TreeExplor
         case 'restore': {
           const results = await Promise.allSettled(targets.map((n) => nodesApi.restore(n.id)));
           if (results.some((r) => r.status === 'rejected')) window.alert(t('tree.restoreConflict'));
-          break;
+          // Restoring may also bring back trashed ancestors, so reload everything visible.
+          await fullRefresh();
+          return;
         }
         case 'deletePermanently':
           await Promise.all(targets.map((n) => nodesApi.hardDelete(n.id)));
@@ -335,7 +372,7 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed }: TreeExplor
       await reloadParents(targets.map((n) => n.parentId));
       await refreshSections();
     },
-    [selectedIds, nodeById, deleteSelection, startCreate, startRename, reloadParents, refreshSections, t],
+    [selectedIds, nodeById, deleteSelection, startCreate, startRename, reloadParents, refreshSections, fullRefresh, t],
   );
 
   // ---------- Keyboard ----------
@@ -443,20 +480,37 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed }: TreeExplor
               {section.items.length === 0 && (
                 <p className="px-6 py-1 text-xs text-neutral-500">{t('tree.empty')}</p>
               )}
-              {section.items.map((node) => (
-                <button
-                  key={node.id}
-                  type="button"
-                  // Folders are not notes: they must never open the editor from these lists.
-                  onClick={() => node.type === 'Note' && onOpenNote(node.id)}
-                  className={`flex w-full items-center gap-2 px-6 py-1 text-left hover:bg-black/5 ${
-                    activeNodeId === node.id ? 'bg-accent-blue/10 text-accent-blue' : ''
-                  }`}
-                >
-                  <span>{node.type === 'Folder' ? '📁' : '📝'}</span>
-                  <span className="truncate">{node.name}</span>
-                </button>
-              ))}
+              {(section.key === 'trash' ? orderTrash(section.items) : section.items.map((n) => ({ node: n, nested: false }))).map(
+                ({ node, nested }) => (
+                  <button
+                    key={node.id}
+                    type="button"
+                    title={section.key === 'trash' && node.path ? `${node.path} / ${node.name}` : node.name}
+                    // Folders are not notes: they must never open the editor from these lists.
+                    onClick={() => node.type === 'Note' && onOpenNote(node.id)}
+                    onContextMenu={(e) => {
+                      if (section.key !== 'trash') return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setContextMenu({ x: e.clientX, y: e.clientY, node, count: 1 });
+                    }}
+                    style={{ paddingLeft: nested ? 40 : 24 }}
+                    className={`flex w-full items-center gap-2 py-1 pr-3 text-left hover:bg-black/5 ${
+                      activeNodeId === node.id ? 'bg-accent-blue/10 text-accent-blue' : ''
+                    }`}
+                  >
+                    <span>{node.type === 'Folder' ? '📁' : '📝'}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{node.name}</span>
+                      {section.key === 'trash' && (
+                        <span className="block truncate text-xs text-neutral-500">
+                          {node.path ? node.path : t('tree.rootLocation')}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                ),
+              )}
             </div>
           )}
         </div>

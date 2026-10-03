@@ -49,8 +49,27 @@ El runner hace polling hacia GitHub: no necesita SSH ni puertos abiertos.
 
 `git push origin main` ejecuta `.github/workflows/deploy.yml`:
 `docker compose up -d --build` (compila en el servidor), aplica migraciones
-(`db-init`, idempotente) y reinicia los servicios. Tambien se puede lanzar a mano
+(`db-init`) y reinicia los servicios. Tambien se puede lanzar a mano
 desde la pestana Actions (workflow_dispatch).
+
+### Migraciones de base de datos (automaticas, nunca a mano)
+
+`db-init` corre en cada despliegue y deja la BD al dia:
+
+- `backend/Database/Migrations/NNNN_*.sql`: se aplican **una sola vez**, en orden, cada
+  una en su transaccion, y se registran en `dbo.SchemaVersions` con su checksum SHA-256.
+  Aqui van tablas nuevas, `ALTER TABLE`, indices y cambios de datos.
+- `backend/Database/StoredProcedures/*.sql`: se reaplican siempre (`CREATE OR ALTER`).
+- **Nunca edites una migracion ya aplicada**: el checksum cambia y `db-init` falla a
+  proposito. Crea una nueva (`0003_...sql`).
+- Si hay migraciones pendientes y la BD ya tiene datos, antes se hace un backup
+  `NotesAppDb_premigration_<fecha>.bak` en `/opt/notes/backups`.
+- Si una migracion falla se revierte, `db-init` sale con error, el backend no arranca y el
+  workflow queda en rojo. Revisa `docker compose logs db-init`; los datos siguen intactos.
+- `0001_baseline.sql` es idempotente (`IF NOT EXISTS`): sobre la BD de produccion existente
+  no cambia nada y solo se registra.
+- `db-init` avisa en el log (sin modificar datos) si hay nombres duplicados entre hermanos.
+- SQL Server Express **no soporta `BACKUP ... WITH COMPRESSION`**; los scripts no lo usan.
 
 ## 4. Respaldos
 

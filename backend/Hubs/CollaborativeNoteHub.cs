@@ -61,14 +61,26 @@ public sealed class CollaborativeNoteHub : Hub
         await Clients.OthersInGroup(NoteGroup(nodeId)).SendAsync("UserLeft", nodeId, Context.ConnectionId);
     }
 
-    /// <summary>Broadcasts a Yjs document update to all other clients editing the same note.</summary>
-    public async Task SendYjsUpdate(Guid nodeId, byte[] update)
+    private async Task EnsureEditableAsync(Guid nodeId)
     {
         var access = await _permissionRepository.CheckAccessAsync(nodeId, UserId);
         if (access is null || access == "Read")
         {
             throw new HubException("You do not have edit access to this note.");
         }
+
+        // Trashed notes are read-only until restored.
+        var node = await _nodeRepository.GetByIdAsync(nodeId);
+        if (node is null || node.IsDeleted)
+        {
+            throw new HubException("This note is in the trash and cannot be edited.");
+        }
+    }
+
+    /// <summary>Broadcasts a Yjs document update to all other clients editing the same note.</summary>
+    public async Task SendYjsUpdate(Guid nodeId, byte[] update)
+    {
+        await EnsureEditableAsync(nodeId);
 
         // Deltas are only relayed; persistence uses full snapshots (SaveSnapshot).
         await Clients.OthersInGroup(NoteGroup(nodeId)).SendAsync("ReceiveYjsUpdate", nodeId, update);
@@ -77,11 +89,7 @@ public sealed class CollaborativeNoteHub : Hub
     /// <summary>Stores the full Yjs document state sent by a client (debounced write to SQL Server).</summary>
     public async Task SaveSnapshot(Guid nodeId, byte[] state)
     {
-        var access = await _permissionRepository.CheckAccessAsync(nodeId, UserId);
-        if (access is null || access == "Read")
-        {
-            throw new HubException("You do not have edit access to this note.");
-        }
+        await EnsureEditableAsync(nodeId);
 
         _documentStore.ApplyUpdate(nodeId, state);
         _documentStore.ScheduleFlush(nodeId, _nodeRepository, PersistDebounce);

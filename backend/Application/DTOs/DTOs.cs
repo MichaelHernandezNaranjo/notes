@@ -13,7 +13,7 @@ public sealed record MoveNodeRequest(Guid? NewParentId, int? NewSortOrder);
 public sealed record NodeDto(
     Guid Id, Guid? ParentId, Guid OwnerId, string Type, string Name,
     string? ContentJson, int SortOrder, bool IsDeleted, DateTime? DeletedAt,
-    DateTime CreatedAt, DateTime UpdatedAt, bool IsFavorite);
+    DateTime CreatedAt, DateTime UpdatedAt, bool IsFavorite, string? Path = null, Guid? DeletedRootId = null);
 
 public sealed record CreateGroupRequest(string Name, string? Description);
 public sealed record AddGroupMemberRequest(Guid UserId, string Role);

@@ -42,56 +42,124 @@ export function clearTokens(): void {
 
 let refreshPromise: Promise<string | null> | null = null;
 
-async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
-
-  const response = await fetch(apiUrl('/api/auth/refresh'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refreshToken }),
-  });
-
-  if (!response.ok) {
-    clearTokens();
+/** Seconds until the JWT expires (negative if already expired); null if it cannot be decoded. */
+function secondsToExpiry(token: string | null): number | null {
+  if (!token) return null;
+  try {
+    const payload = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const { exp } = JSON.parse(atob(payload)) as { exp?: number };
+    return typeof exp === 'number' ? exp - Date.now() / 1000 : null;
+  } catch {
     return null;
   }
+}
 
-  const data: AuthResponse = await response.json();
-  storeTokens(data.accessToken, data.refreshToken);
-  return data.accessToken;
+/** Refresh slightly before expiry so requests and the SignalR connection never carry a stale token. */
+const REFRESH_MARGIN_SECONDS = 60;
+
+function isFresh(token: string | null): boolean {
+  const left = secondsToExpiry(token);
+  return left !== null && left > REFRESH_MARGIN_SECONDS;
+}
+
+/** Runs `fn` while holding a cross-tab lock when supported, so tabs don't burn the rotating refresh token concurrently. */
+async function withRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
+  if (typeof navigator !== 'undefined' && navigator.locks) {
+    return navigator.locks.request('notesapp.refresh', fn);
+  }
+  return fn();
 }
 
 /**
- * Fetch wrapper that attaches the JWT access token and transparently
- * refreshes it (using the rotating refresh token) on a single 401 retry.
+ * Exchanges the refresh token for a new pair. Only an explicit rejection (4xx) ends the session;
+ * network errors or 5xx keep the tokens so the next call can retry.
+ * `force` skips the "another tab already refreshed" shortcut (used after the server returned 401).
+ */
+async function refreshAccessToken(force: boolean, staleToken: string | null): Promise<string | null> {
+  return withRefreshLock(async () => {
+    // Another tab may have refreshed while we waited for the lock.
+    const current = getAccessToken();
+    if (current && (force ? current !== staleToken && isFresh(current) : isFresh(current))) return current;
+
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return null;
+
+    let response: Response;
+    try {
+      response = await fetch(apiUrl('/api/auth/refresh'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      });
+    } catch {
+      return null; // offline / transient: keep the session
+    }
+
+    if (response.status >= 500) return null; // transient server error: keep the session
+    if (!response.ok) {
+      clearTokens(); // refresh token rejected: the session is really over
+      return null;
+    }
+
+    const data: AuthResponse = await response.json();
+    storeTokens(data.accessToken, data.refreshToken);
+    return data.accessToken;
+  });
+}
+
+function refreshOnce(force: boolean, staleToken: string | null): Promise<string | null> {
+  refreshPromise ??= refreshAccessToken(force, staleToken).finally(() => {
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}
+
+/**
+ * Returns an access token that is valid for at least a minute, refreshing it first if needed.
+ * Used by fetch and by the SignalR `accessTokenFactory` (which re-runs on every reconnect).
+ */
+export async function getValidAccessToken(): Promise<string | null> {
+  const token = getAccessToken();
+  if (isFresh(token)) return token;
+  if (!getRefreshToken()) return token;
+  return (await refreshOnce(false, token)) ?? getAccessToken();
+}
+
+function redirectToLoginIfSessionEnded(): void {
+  if (!getRefreshToken() && window.location.pathname !== '/login') {
+    clearTokens();
+    window.location.assign('/login');
+  }
+}
+
+/**
+ * Fetch wrapper that attaches a valid JWT (refreshing it proactively when close to expiry)
+ * and, if the server still answers 401, forces a refresh and retries once.
  */
 export async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
-  const accessToken = getAccessToken();
+  const sentToken = await getValidAccessToken();
   const headers = new Headers(init.headers);
-  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
-  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+  if (sentToken) headers.set('Authorization', `Bearer ${sentToken}`);
+  if (init.body && !headers.has('Content-Type') && !(init.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json');
+  }
 
   const url = apiUrl(input);
   let response = await fetch(url, { ...init, headers });
 
   if (response.status === 401) {
-    refreshPromise ??= refreshAccessToken().finally(() => {
-      refreshPromise = null;
-    });
-    const newToken = await refreshPromise;
-
+    const newToken = await refreshOnce(true, sentToken);
     if (newToken) {
       headers.set('Authorization', `Bearer ${newToken}`);
       response = await fetch(url, { ...init, headers });
     } else {
-      clearTokens();
-      if (window.location.pathname !== '/login') window.location.assign('/login');
+      redirectToLoginIfSessionEnded();
     }
   }
 
   return response;
 }
+
 
 export async function apiJson<T>(input: string, init: RequestInit = {}): Promise<T> {
   const response = await apiFetch(input, init);

@@ -20,3 +20,4 @@ frontend/*.local
 ## deploy / secrets
 .env
 /deploy/*.local
+backend/App_Data/

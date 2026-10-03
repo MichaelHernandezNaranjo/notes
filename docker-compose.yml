@@ -38,6 +38,8 @@ services:
     depends_on:
       db-init:
         condition: service_completed_successfully
+    volumes:
+      - notesfiles:/data/files
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__SqlServer: "Server=db;Database=NotesAppDb;User Id=notesapp;Password=${APP_DB_PASSWORD};TrustServerCertificate=True"
@@ -66,3 +68,4 @@ services:
 
 volumes:
   mssqldata:
+  notesfiles:

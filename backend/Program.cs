@@ -48,6 +48,7 @@ builder.Services.AddScoped<IGroupRepository, GroupRepository>();
 builder.Services.AddScoped<INodeRepository, NodeRepository>();
 builder.Services.AddScoped<IPermissionRepository, PermissionRepository>();
 builder.Services.AddScoped<IAuditRepository, AuditRepository>();
+builder.Services.AddScoped<IFileRepository, FileRepository>();
 
 // ---------- Auth infrastructure ----------
 builder.Services.AddHttpClient();
@@ -59,6 +60,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<INodeService, NodeService>();
 builder.Services.AddScoped<IGroupService, GroupService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
+builder.Services.AddScoped<IFileService, FileService>();
 
 // ---------- Realtime ----------
 builder.Services.AddSingleton<IYjsDocumentStore, YjsDocumentStore>();
@@ -75,6 +77,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
+            ClockSkew = TimeSpan.FromSeconds(30),
             ValidIssuer = jwtSection["Issuer"],
             ValidAudience = jwtSection["Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSection["Secret"]!)),

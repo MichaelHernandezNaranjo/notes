@@ -16,6 +16,7 @@ BEGIN
 
     IF @Name = N'' THROW 50002, 'Name cannot be empty.', 1;
 
+    BEGIN TRY
     BEGIN TRAN;
 
     -- Siblings share one namespace (notes + folders), case-insensitive; trashed items do not count.
@@ -23,7 +24,6 @@ BEGIN
                WHERE ISNULL(ParentId, '00000000-0000-0000-0000-000000000000') = ISNULL(@ParentId, '00000000-0000-0000-0000-000000000000')
                  AND IsDeleted = 0 AND Name = @Name)
     BEGIN
-        ROLLBACK TRAN;
         THROW 50001, 'A node with this name already exists in this folder.', 1;
     END
 
@@ -36,6 +36,11 @@ BEGIN
     VALUES (@NewId, @ParentId, @OwnerId, @Type, @Name, @NextSort);
 
     COMMIT TRAN;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
 
     SELECT * FROM dbo.Nodes WHERE Id = @NewId;
 END
@@ -52,6 +57,7 @@ BEGIN
 
     IF @Name = N'' THROW 50002, 'Name cannot be empty.', 1;
 
+    BEGIN TRY
     BEGIN TRAN;
 
     IF EXISTS (SELECT 1 FROM dbo.Nodes s WITH (UPDLOCK, HOLDLOCK)
@@ -59,7 +65,6 @@ BEGIN
                WHERE ISNULL(s.ParentId, '00000000-0000-0000-0000-000000000000') = ISNULL(me.ParentId, '00000000-0000-0000-0000-000000000000')
                  AND s.IsDeleted = 0 AND s.Id <> @NodeId AND s.Name = @Name)
     BEGIN
-        ROLLBACK TRAN;
         THROW 50001, 'A node with this name already exists in this folder.', 1;
     END
 
@@ -68,6 +73,11 @@ BEGIN
     WHERE Id = @NodeId;
 
     COMMIT TRAN;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
 
     SELECT * FROM dbo.Nodes WHERE Id = @NodeId;
 END
@@ -82,6 +92,7 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
+    BEGIN TRY
     BEGIN TRAN;
 
     IF EXISTS (SELECT 1 FROM dbo.Nodes s WITH (UPDLOCK, HOLDLOCK)
@@ -89,7 +100,6 @@ BEGIN
                WHERE ISNULL(s.ParentId, '00000000-0000-0000-0000-000000000000') = ISNULL(@NewParentId, '00000000-0000-0000-0000-000000000000')
                  AND s.IsDeleted = 0 AND s.Id <> @NodeId AND s.Name = me.Name)
     BEGIN
-        ROLLBACK TRAN;
         THROW 50001, 'A node with this name already exists in this folder.', 1;
     END
 
@@ -107,6 +117,11 @@ BEGIN
     WHERE Id = @NodeId;
 
     COMMIT TRAN;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
 
     SELECT * FROM dbo.Nodes WHERE Id = @NodeId;
 END
@@ -122,6 +137,7 @@ BEGIN
     DECLARE @NewId UNIQUEIDENTIFIER = NEWID();
     DECLARE @ParentId UNIQUEIDENTIFIER, @BaseName NVARCHAR(300), @NewName NVARCHAR(300), @N INT = 1;
 
+    BEGIN TRY
     BEGIN TRAN;
 
     SELECT @ParentId = ParentId, @BaseName = Name FROM dbo.Nodes WHERE Id = @NodeId;
@@ -144,6 +160,11 @@ BEGIN
     WHERE n.Id = @NodeId;
 
     COMMIT TRAN;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
 
     SELECT * FROM dbo.Nodes WHERE Id = @NewId;
 END
@@ -172,21 +193,35 @@ BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    -- Restoring must not collide with a live sibling of the same name.
-    IF EXISTS (SELECT 1 FROM dbo.Nodes s
-               INNER JOIN dbo.Nodes me ON me.Id = @NodeId
-               WHERE ISNULL(s.ParentId, '00000000-0000-0000-0000-000000000000') = ISNULL(me.ParentId, '00000000-0000-0000-0000-000000000000')
-                 AND s.IsDeleted = 0 AND s.Id <> @NodeId AND s.Name = me.Name)
-        THROW 50001, 'A node with this name already exists in this folder.', 1;
+    -- Nodes to bring back: the node, its descendants, and any trashed ancestors (only the chain itself).
+    DECLARE @ToRestore TABLE (Id UNIQUEIDENTIFIER PRIMARY KEY);
 
     ;WITH Descendants AS (
         SELECT Id FROM dbo.Nodes WHERE Id = @NodeId
         UNION ALL
         SELECT n.Id FROM dbo.Nodes n INNER JOIN Descendants d ON n.ParentId = d.Id
     )
+    INSERT INTO @ToRestore SELECT Id FROM Descendants;
+
+    ;WITH Ancestors AS (
+        SELECT p.Id, p.ParentId, p.IsDeleted FROM dbo.Nodes n INNER JOIN dbo.Nodes p ON p.Id = n.ParentId WHERE n.Id = @NodeId
+        UNION ALL
+        SELECT p.Id, p.ParentId, p.IsDeleted FROM Ancestors a INNER JOIN dbo.Nodes p ON p.Id = a.ParentId
+    )
+    INSERT INTO @ToRestore SELECT Id FROM Ancestors WHERE IsDeleted = 1 AND Id NOT IN (SELECT Id FROM @ToRestore);
+
+    -- Restoring must not collide with a live sibling of the same name (nor with another restored node).
+    IF EXISTS (SELECT 1
+               FROM dbo.Nodes r
+               INNER JOIN @ToRestore tr ON tr.Id = r.Id
+               WHERE EXISTS (SELECT 1 FROM dbo.Nodes s
+                             WHERE ISNULL(s.ParentId, '00000000-0000-0000-0000-000000000000') = ISNULL(r.ParentId, '00000000-0000-0000-0000-000000000000')
+                               AND s.IsDeleted = 0 AND s.Id <> r.Id AND s.Name = r.Name))
+        THROW 50001, 'A node with this name already exists in this folder.', 1;
+
     UPDATE dbo.Nodes
     SET IsDeleted = 0, DeletedAt = NULL
-    WHERE Id IN (SELECT Id FROM Descendants);
+    WHERE Id IN (SELECT Id FROM @ToRestore);
 END
 GO
 
@@ -195,12 +230,27 @@ CREATE OR ALTER PROCEDURE dbo.sp_Node_HardDelete
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE @Ids TABLE (Id UNIQUEIDENTIFIER PRIMARY KEY);
     ;WITH Descendants AS (
         SELECT Id FROM dbo.Nodes WHERE Id = @NodeId
         UNION ALL
         SELECT n.Id FROM dbo.Nodes n INNER JOIN Descendants d ON n.ParentId = d.Id
     )
-    DELETE FROM dbo.Nodes WHERE Id IN (SELECT Id FROM Descendants);
+    INSERT INTO @Ids SELECT Id FROM Descendants;
+
+    BEGIN TRY
+    BEGIN TRAN;
+    -- AuditLog.NodeId has no cascade: keep the history but detach it from the node being removed.
+    UPDATE dbo.AuditLog SET NodeId = NULL WHERE NodeId IN (SELECT Id FROM @Ids);
+    DELETE FROM dbo.Nodes WHERE Id IN (SELECT Id FROM @Ids);
+    COMMIT TRAN;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
 END
 GO
 
@@ -309,9 +359,33 @@ CREATE OR ALTER PROCEDURE dbo.sp_Node_GetTrash
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT * FROM dbo.Nodes
-    WHERE OwnerId = @UserId AND IsDeleted = 1
-    ORDER BY DeletedAt DESC;
+
+    -- Walk up from every trashed node's parent to build its location (root first)
+    -- and find the highest trashed ancestor (DeletedRootId) for grouping in the UI.
+    ;WITH Trashed AS (
+        SELECT * FROM dbo.Nodes WHERE OwnerId = @UserId AND IsDeleted = 1
+    ),
+    Up AS (
+        SELECT t.Id AS NodeId, p.ParentId AS NextId, CAST(p.Name AS NVARCHAR(MAX)) AS PathText,
+               CASE WHEN p.IsDeleted = 1 THEN p.Id ELSE NULL END AS TopDeleted
+        FROM Trashed t
+        INNER JOIN dbo.Nodes p ON p.Id = t.ParentId
+        UNION ALL
+        SELECT u.NodeId, p.ParentId, p.Name + N' / ' + u.PathText,
+               CASE WHEN p.IsDeleted = 1 THEN p.Id ELSE u.TopDeleted END
+        FROM Up u
+        INNER JOIN dbo.Nodes p ON p.Id = u.NextId
+    ),
+    Full_ AS (
+        SELECT NodeId, PathText, TopDeleted FROM Up WHERE NextId IS NULL
+    )
+    SELECT t.*,
+           ISNULL(f.PathText, N'') AS Path,
+           ISNULL(f.TopDeleted, t.Id) AS DeletedRootId
+    FROM Trashed t
+    LEFT JOIN Full_ f ON f.NodeId = t.Id
+    ORDER BY t.DeletedAt DESC
+    OPTION (MAXRECURSION 200);
 END
 GO
 

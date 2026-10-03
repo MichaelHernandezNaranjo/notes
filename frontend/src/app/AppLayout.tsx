@@ -1,6 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useI18n } from '../i18n/I18nProvider';
-import { useTheme } from '../theme/ThemeProvider';
 
 const navItems = [
   { to: '/notes', labelKey: 'nav.explorer', icon: '🗂️' },
@@ -9,43 +8,40 @@ const navItems = [
   { to: '/about', labelKey: 'nav.about', icon: 'ℹ️' },
 ];
 
+/** App shell with an always-collapsed icon rail; labels are exposed as tooltips and aria-labels. */
 export function AppLayout() {
   const { t } = useI18n();
-  const { sidebarCollapsed, toggleSidebar } = useTheme();
 
   return (
     <div className="flex h-screen w-screen bg-bg-base text-neutral-900">
-      <nav
-        className={`flex flex-col border-r border-border-subtle bg-bg-elevated transition-all ${
-          sidebarCollapsed ? 'w-14' : 'w-56'
-        }`}
-      >
-        <button
-          type="button"
-          onClick={toggleSidebar}
-          className="flex items-center gap-2 px-3 py-4 text-left text-sm font-semibold text-neutral-900 hover:bg-black/5"
+      <nav className="flex w-14 shrink-0 flex-col border-r border-border-subtle bg-bg-elevated">
+        <div
+          className="flex items-center justify-center py-4"
+          title={t('app.name')}
+          role="img"
+          aria-label={t('app.name')}
         >
           <span className="h-6 w-6 shrink-0 rounded bg-gradient-to-br from-accent-emerald via-accent-blue to-accent-purple" />
-          {!sidebarCollapsed && <span>{t('app.name')}</span>}
-        </button>
-        <div className="flex flex-1 flex-col gap-1 px-2">
+        </div>
+        <div className="flex flex-1 flex-col items-center gap-1 px-2">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
+              title={t(item.labelKey)}
+              aria-label={t(item.labelKey)}
               className={({ isActive }) =>
-                `flex items-center gap-2 rounded px-2 py-2 text-sm hover:bg-black/5 ${
+                `flex h-10 w-10 items-center justify-center rounded text-base hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-accent-blue ${
                   isActive ? 'bg-accent-blue/10 text-accent-blue' : 'text-neutral-700'
                 }`
               }
             >
-              <span>{item.icon}</span>
-              {!sidebarCollapsed && <span>{t(item.labelKey)}</span>}
+              <span aria-hidden="true">{item.icon}</span>
             </NavLink>
           ))}
         </div>
       </nav>
-      <div className="flex-1 overflow-hidden">
+      <div className="min-w-0 flex-1 overflow-hidden">
         <Outlet />
       </div>
     </div>

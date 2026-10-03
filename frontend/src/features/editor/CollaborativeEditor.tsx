@@ -9,6 +9,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useI18n } from '../../i18n/I18nProvider';
 import { exportNoteAsImage, exportNoteAsPdf } from './exportNote';
 import { EditorToolbar } from './EditorToolbar';
+import { createFileResolver, uploadNoteImage } from './noteFiles';
 import { YjsSignalRProvider, type PresenceUser } from './YjsSignalRProvider';
 
 const LOAD_TIMEOUT_MS = 10000;
@@ -23,6 +24,11 @@ export type CollaborativeEditorProps = {
   nodeId: string;
   noteName: string;
   onShare: () => void;
+  /** Note is in the trash: read-only, with a banner and a Restore action. */
+  trashed?: boolean;
+  /** Location of the trashed note (ancestor names). */
+  trashPath?: string | null;
+  onRestore?: () => Promise<void> | void;
 };
 
 /**
@@ -31,7 +37,7 @@ export type CollaborativeEditorProps = {
  * concurrent edits, so multiple users editing the same note see changes
  * merge instantly and without conflicts.
  */
-export function CollaborativeEditor({ nodeId, noteName, onShare }: CollaborativeEditorProps) {
+export function CollaborativeEditor({ nodeId, noteName, onShare, trashed = false, trashPath, onRestore }: CollaborativeEditorProps) {
   const { user } = useAuth();
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -39,6 +45,7 @@ export function CollaborativeEditor({ nodeId, noteName, onShare }: Collaborative
   const [saveState, setSaveState] = useState<'saved' | 'saving'>('saved');
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [attempt, setAttempt] = useState(0);
+  const [restoring, setRestoring] = useState(false);
 
   const ydocRef = useRef<Y.Doc>(new Y.Doc());
   const providerRef = useRef<YjsSignalRProvider | null>(null);
@@ -46,6 +53,12 @@ export function CollaborativeEditor({ nodeId, noteName, onShare }: Collaborative
   if (!providerRef.current) {
     providerRef.current = new YjsSignalRProvider(nodeId, ydocRef.current);
   }
+  // Trashed notes never send edits or snapshots (the server rejects them as well).
+  providerRef.current.readOnly = trashed;
+
+  const resolverRef = useRef<ReturnType<typeof createFileResolver> | null>(null);
+  resolverRef.current ??= createFileResolver();
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const editor = useCreateBlockNote(
     withCollaboration({
@@ -57,8 +70,21 @@ export function CollaborativeEditor({ nodeId, noteName, onShare }: Collaborative
           color: colorForUser(user?.id ?? 'anon'),
         },
       },
+      uploadFile: async (file: File) => {
+        try {
+          setUploadError(null);
+          return await uploadNoteImage(nodeId, file);
+        } catch (error) {
+          setUploadError(error instanceof Error ? error.message : t('editor.uploadError'));
+          throw error;
+        }
+      },
+      resolveFileUrl: (url: string) => resolverRef.current!.resolve(url),
     }),
   );
+
+  // Release the blob: URLs created for images when the editor goes away.
+  useEffect(() => () => resolverRef.current?.dispose(), []);
 
   useEffect(() => {
     const provider = providerRef.current!;
@@ -96,7 +122,47 @@ export function CollaborativeEditor({ nodeId, noteName, onShare }: Collaborative
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {trashed && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-center justify-between gap-3 border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900"
+        >
+          <span className="min-w-0 truncate">
+            {t('editor.trashedNotice')}
+            {trashPath ? ` ${t('editor.trashedLocation')}: ${trashPath}` : ''}
+          </span>
+          {onRestore && (
+            <button
+              type="button"
+              disabled={restoring}
+              onClick={async () => {
+                setRestoring(true);
+                try {
+                  await onRestore();
+                } finally {
+                  setRestoring(false);
+                }
+              }}
+              className="shrink-0 rounded-md bg-amber-600 px-3 py-1 font-medium text-white hover:bg-amber-700 disabled:opacity-60"
+            >
+              {t('tree.restore')}
+            </button>
+          )}
+        </div>
+      )}
+      {uploadError && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-center justify-between gap-3 border-b border-red-300 bg-red-50 px-4 py-2 text-sm text-red-800"
+        >
+          <span className="min-w-0 truncate">{uploadError}</span>
+          <button type="button" onClick={() => setUploadError(null)} className="shrink-0 underline">
+            {t('common.close')}
+          </button>
+        </div>
+      )}
       <EditorToolbar
+        shareDisabled={trashed}
         title={noteName || t('editor.untitled')}
         saveState={saveState}
         presence={presence}
@@ -108,7 +174,7 @@ export function CollaborativeEditor({ nodeId, noteName, onShare }: Collaborative
 
       <div className="relative min-h-0 flex-1">
         <div ref={containerRef} className="h-full overflow-y-auto bg-bg-base px-6 py-4">
-          <BlockNoteView editor={editor} theme="light" />
+          <BlockNoteView editor={editor} theme="light" editable={!trashed} />
         </div>
 
         {loadState !== 'ready' && (

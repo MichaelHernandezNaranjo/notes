@@ -1,7 +1,7 @@
 import * as signalR from '@microsoft/signalr';
 import * as Y from 'yjs';
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from 'y-protocols/awareness';
-import { apiUrl, getAccessToken } from '../../services/apiClient';
+import { apiUrl, getValidAccessToken } from '../../services/apiClient';
 
 export type PresenceUser = { connectionId: string; name: string };
 
@@ -56,6 +56,8 @@ export class YjsSignalRProvider {
   /** True once the server state was applied; snapshots are never sent before, to avoid overwriting stored content with an empty doc. */
   private synced = false;
   private snapshotTimer: ReturnType<typeof setTimeout> | null = null;
+  /** When true (e.g. note in trash) no edits or snapshots are sent to the server. */
+  public readOnly = false;
 
   constructor(nodeId: string, doc: Y.Doc) {
     this.nodeId = nodeId;
@@ -63,7 +65,7 @@ export class YjsSignalRProvider {
     this.awareness = new Awareness(doc);
 
     this.doc.on('update', (update: Uint8Array, origin: unknown) => {
-      if (origin === this) return; // avoid echoing updates we just received
+      if (origin === this || this.readOnly) return; // avoid echoing updates we just received
       this.safeInvoke('SendYjsUpdate', this.nodeId, toBase64(update));
       this.scheduleSnapshot();
     });
@@ -144,7 +146,7 @@ export class YjsSignalRProvider {
 
   private async connectInternal(): Promise<void> {
     const connection = new signalR.HubConnectionBuilder()
-      .withUrl(apiUrl('/hubs/collaborative-note'), { accessTokenFactory: () => getAccessToken() ?? '' })
+      .withUrl(apiUrl('/hubs/collaborative-note'), { accessTokenFactory: async () => (await getValidAccessToken()) ?? '' })
       .withAutomaticReconnect()
       .build();
 
@@ -215,9 +217,11 @@ export class YjsSignalRProvider {
       this.snapshotTimer = null;
     }
     if (this.synced && connection.state === signalR.HubConnectionState.Connected) {
-      await connection
-        .invoke('SaveSnapshot', this.nodeId, toBase64(Y.encodeStateAsUpdate(this.doc)))
-        .catch(() => undefined);
+      if (!this.readOnly) {
+        await connection
+          .invoke('SaveSnapshot', this.nodeId, toBase64(Y.encodeStateAsUpdate(this.doc)))
+          .catch(() => undefined);
+      }
       await connection.invoke('LeaveNote', this.nodeId).catch(() => undefined);
     }
     await connection.stop().catch(() => undefined);

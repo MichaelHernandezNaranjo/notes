@@ -8,6 +8,7 @@ export type EditorToolbarProps = {
   saveState: 'saved' | 'saving';
   presence: PresenceUser[];
   onShare: () => void;
+  shareDisabled?: boolean;
   onExportPdf: () => void;
   onExportPng: () => void;
   onExportJpg: () => void;
@@ -60,6 +61,7 @@ export function EditorToolbar({
   saveState,
   presence,
   onShare,
+  shareDisabled = false,
   onExportPdf,
   onExportPng,
   onExportJpg,
@@ -154,7 +156,8 @@ export function EditorToolbar({
           aria-label={t('editor.share')}
           title={t('editor.share')}
           onClick={onShare}
-          className={`flex items-center gap-1.5 rounded-md bg-accent-blue px-3 py-1.5 text-sm font-medium text-white transition hover:bg-accent-blue-dark ${focusRing}`}
+          disabled={shareDisabled}
+          className={`flex items-center gap-1.5 rounded-md bg-accent-blue px-3 py-1.5 text-sm font-medium text-white transition hover:bg-accent-blue-dark disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-accent-blue ${focusRing}`}
         >
           <ShareIcon />
           <span className="hidden md:inline">{t('editor.share')}</span>

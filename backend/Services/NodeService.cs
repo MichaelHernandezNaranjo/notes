@@ -27,12 +27,14 @@ public sealed class NodeService : INodeService
     private readonly INodeRepository _nodeRepository;
     private readonly IPermissionRepository _permissionRepository;
     private readonly IAuditRepository _auditRepository;
+    private readonly IFileService _fileService;
 
-    public NodeService(INodeRepository nodeRepository, IPermissionRepository permissionRepository, IAuditRepository auditRepository)
+    public NodeService(INodeRepository nodeRepository, IPermissionRepository permissionRepository, IAuditRepository auditRepository, IFileService fileService)
     {
         _nodeRepository = nodeRepository;
         _permissionRepository = permissionRepository;
         _auditRepository = auditRepository;
+        _fileService = fileService;
     }
 
     public async Task<NodeDto> CreateAsync(Guid userId, CreateNodeRequest request)
@@ -50,6 +52,7 @@ public sealed class NodeService : INodeService
     public async Task<NodeDto?> RenameAsync(Guid userId, Guid nodeId, string name)
     {
         await EnsureAccessAsync(userId, nodeId, requireEdit: true);
+        await EnsureNotTrashedAsync(nodeId);
         var node = await _nodeRepository.RenameAsync(nodeId, name);
         await _auditRepository.InsertAsync(userId, nodeId, "NodeRenamed", null);
         return node is null ? null : Map(node);
@@ -58,6 +61,7 @@ public sealed class NodeService : INodeService
     public async Task<NodeDto?> MoveAsync(Guid userId, Guid nodeId, Guid? newParentId, int? newSortOrder)
     {
         await EnsureAccessAsync(userId, nodeId, requireEdit: true);
+        await EnsureNotTrashedAsync(nodeId);
         if (newParentId is not null)
         {
             await EnsureAccessAsync(userId, newParentId.Value, requireEdit: true);
@@ -92,8 +96,14 @@ public sealed class NodeService : INodeService
     public async Task HardDeleteAsync(Guid userId, Guid nodeId)
     {
         await EnsureAccessAsync(userId, nodeId, requireEdit: true);
+
+        // Collect the images first: the DB rows disappear (cascade) with the nodes.
+        var files = await _fileService.ListTreeAsync(nodeId);
         await _nodeRepository.HardDeleteAsync(nodeId);
-        await _auditRepository.InsertAsync(userId, nodeId, "NodeHardDeleted", null);
+        _fileService.DeleteFromDisk(files);
+
+        // The node no longer exists, so the audit row cannot reference it (FK); keep its id in the metadata.
+        await _auditRepository.InsertAsync(userId, null, "NodeHardDeleted", $"{{\"nodeId\":\"{nodeId}\"}}");
     }
 
     public async Task<IEnumerable<NodeDto>> GetTreeAsync(Guid userId) =>
@@ -128,6 +138,15 @@ public sealed class NodeService : INodeService
         return Map(node);
     }
 
+    private async Task EnsureNotTrashedAsync(Guid nodeId)
+    {
+        var node = await _nodeRepository.GetByIdAsync(nodeId);
+        if (node is { IsDeleted: true })
+        {
+            throw new UnauthorizedAccessException("This node is in the trash and cannot be modified. Restore it first.");
+        }
+    }
+
     private async Task EnsureAccessAsync(Guid userId, Guid nodeId, bool requireEdit)
     {
         var access = await _permissionRepository.CheckAccessAsync(nodeId, userId);
@@ -144,5 +163,5 @@ public sealed class NodeService : INodeService
 
     private static NodeDto Map(Node n) => new(
         n.Id, n.ParentId, n.OwnerId, n.Type, n.Name, n.ContentJson,
-        n.SortOrder, n.IsDeleted, n.DeletedAt, n.CreatedAt, n.UpdatedAt, n.IsFavorite);
+        n.SortOrder, n.IsDeleted, n.DeletedAt, n.CreatedAt, n.UpdatedAt, n.IsFavorite, n.Path, n.DeletedRootId);
 }
