@@ -5,9 +5,16 @@ using NotesApp.Api.Infrastructure.Auth;
 
 namespace NotesApp.Api.Services;
 
+/// <summary>The login request did not carry an explicit acceptance of the current Terms &amp; Privacy Policy version.</summary>
+public sealed class TermsNotAcceptedException(string requiredVersion)
+    : Exception("The current Terms and Conditions must be accepted to sign in.")
+{
+    public string RequiredVersion { get; } = requiredVersion;
+}
+
 public interface IAuthService
 {
-    Task<AuthResponse> LoginWithGoogleAsync(string code, string redirectUri);
+    Task<AuthResponse> LoginWithGoogleAsync(string code, string redirectUri, string? termsVersion);
     Task<AuthResponse> RefreshAsync(string refreshToken);
     Task LogoutAsync(string refreshToken);
 }
@@ -34,10 +41,17 @@ public sealed class AuthService : IAuthService
         _configuration = configuration;
     }
 
-    public async Task<AuthResponse> LoginWithGoogleAsync(string code, string redirectUri)
+    public async Task<AuthResponse> LoginWithGoogleAsync(string code, string redirectUri, string? termsVersion)
     {
+        // Checked first: without explicit acceptance of the current Terms nothing is exchanged or stored.
+        var currentVersion = _configuration["Terms:Version"];
+        if (string.IsNullOrEmpty(currentVersion) || !string.Equals(termsVersion, currentVersion, StringComparison.Ordinal))
+        {
+            throw new TermsNotAcceptedException(currentVersion ?? string.Empty);
+        }
+
         var profile = await _googleOAuthService.ExchangeCodeAndGetProfileAsync(code, redirectUri);
-        var user = await _userRepository.UpsertAsync(profile.GoogleId, profile.Email, profile.DisplayName, profile.AvatarUrl);
+        var user = await _userRepository.UpsertAsync(profile.GoogleId, profile.Email, profile.DisplayName, profile.AvatarUrl, termsVersion);
         return await IssueTokensAsync(user);
     }
 

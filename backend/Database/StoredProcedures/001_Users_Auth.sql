@@ -24,11 +24,13 @@ END
 GO
 
 -- Upsert: creates the user on first Google login, updates profile data on subsequent logins.
+-- @TermsVersion is the Terms/Privacy version the user explicitly accepted at this login (recorded with a timestamp).
 CREATE OR ALTER PROCEDURE dbo.sp_User_Upsert
-    @GoogleId    NVARCHAR(128),
-    @Email       NVARCHAR(256),
-    @DisplayName NVARCHAR(200),
-    @AvatarUrl   NVARCHAR(1024) = NULL
+    @GoogleId     NVARCHAR(128),
+    @Email        NVARCHAR(256),
+    @DisplayName  NVARCHAR(200),
+    @AvatarUrl    NVARCHAR(1024) = NULL,
+    @TermsVersion NVARCHAR(20)   = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -40,10 +42,15 @@ BEGIN
         UPDATE SET Email = @Email,
                    DisplayName = @DisplayName,
                    AvatarUrl = @AvatarUrl,
+                   -- Keep the original acceptance date while the accepted version is unchanged.
+                   TermsAcceptedAt = CASE WHEN @TermsVersion IS NOT NULL AND ISNULL(target.TermsAcceptedVersion, N'') <> @TermsVersion
+                                          THEN SYSUTCDATETIME() ELSE target.TermsAcceptedAt END,
+                   TermsAcceptedVersion = ISNULL(@TermsVersion, target.TermsAcceptedVersion),
                    UpdatedAt = SYSUTCDATETIME()
     WHEN NOT MATCHED THEN
-        INSERT (GoogleId, Email, DisplayName, AvatarUrl)
-        VALUES (@GoogleId, @Email, @DisplayName, @AvatarUrl);
+        INSERT (GoogleId, Email, DisplayName, AvatarUrl, TermsAcceptedVersion, TermsAcceptedAt)
+        VALUES (@GoogleId, @Email, @DisplayName, @AvatarUrl, @TermsVersion,
+                CASE WHEN @TermsVersion IS NULL THEN NULL ELSE SYSUTCDATETIME() END);
 
     SELECT TOP (1) * FROM dbo.Users WHERE GoogleId = @GoogleId;
 END

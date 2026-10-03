@@ -2,7 +2,7 @@ export type Language = 'es' | 'en';
 
 export const translations = {
   es: {
-    app: { name: 'Espacio Colaborativo' },
+    app: { name: 'Notes' },
     nav: {
       recent: 'Recientes',
       favorites: 'Favoritos',
@@ -11,6 +11,51 @@ export const translations = {
       settings: 'Configuración',
       about: 'Acerca de',
       groups: 'Grupos',
+      shared: 'Compartido conmigo',
+    },
+    about: {
+      title: 'Acerca de',
+      tagline: 'Notas y archivos colaborativos en tiempo real',
+      description:
+        'Notes reúne en un solo espacio tus notas, carpetas e imágenes y te permite editarlas junto a otras personas al mismo tiempo, con control de permisos y sin perder el orden.',
+      features: 'Qué puedes hacer',
+      stack: 'Tecnología',
+      rights: 'Todos los derechos reservados.',
+      contact: 'Contacto',
+      f: {
+        realtime: { title: 'Edición en tiempo real', text: 'Varias personas editan la misma nota a la vez y ven los cambios al instante.' },
+        organize: { title: 'Notas y carpetas', text: 'Organiza todo en un árbol, arrastra para mover y encuentra lo que buscas al instante.' },
+        sharing: { title: 'Compartir con permisos', text: 'Comparte con personas o grupos, con acceso de lectura o edición.' },
+        images: { title: 'Imágenes', text: 'Inserta imágenes en tus notas; se guardan de forma segura junto al documento.' },
+        trash: { title: 'Papelera', text: 'Recupera lo eliminado: las notas en la papelera son de solo lectura hasta restaurarlas.' },
+        export: { title: 'Exportación', text: 'Descarga tus notas como PDF o imagen (PNG/JPG).' },
+      },
+    },
+    legal: {
+      terms: 'Términos y Condiciones',
+      privacy: 'Política de Privacidad',
+    },
+    login: {
+      subtitle: 'Inicia sesión para acceder a tu espacio de trabajo.',
+      accept: 'He leído y acepto los',
+      and: 'y la',
+      required: 'Debes aceptar los términos para continuar.',
+      acceptRequiredError: 'Debes aceptar los Términos y Condiciones y la Política de Privacidad para iniciar sesión.',
+      secure: 'Acceso seguro con tu cuenta de Google. No almacenamos contraseñas.',
+      brandTitle: 'Tus ideas, en equipo y en tiempo real',
+      point1: 'Edita notas junto a tu equipo, al mismo tiempo',
+      point2: 'Organiza carpetas, imágenes y archivos en un solo lugar',
+      point3: 'Comparte con permisos claros y recupera lo eliminado',
+    },
+    search: {
+      label: 'Buscar carpetas y notas',
+      placeholder: 'Buscar por nombre…',
+      clear: 'Limpiar búsqueda',
+      searching: 'Buscando…',
+      results: 'Resultados de búsqueda',
+      noResults: 'Sin resultados para «{query}»',
+      error: 'No se pudo completar la búsqueda.',
+      refine: 'Hay más coincidencias: afina la búsqueda.',
     },
     auth: {
       loginWithGoogle: 'Iniciar sesión con Google',
@@ -82,7 +127,7 @@ export const translations = {
     },
   },
   en: {
-    app: { name: 'Collaborative Workspace' },
+    app: { name: 'Notes' },
     nav: {
       recent: 'Recent',
       favorites: 'Favorites',
@@ -91,6 +136,51 @@ export const translations = {
       settings: 'Settings',
       about: 'About',
       groups: 'Groups',
+      shared: 'Shared with me',
+    },
+    about: {
+      title: 'About',
+      tagline: 'Collaborative notes and files in real time',
+      description:
+        'Notes brings your notes, folders and images into a single space and lets you edit them together with other people at the same time, with permission control and without losing order.',
+      features: 'What you can do',
+      stack: 'Technology',
+      rights: 'All rights reserved.',
+      contact: 'Contact',
+      f: {
+        realtime: { title: 'Real-time editing', text: 'Several people edit the same note at once and see changes instantly.' },
+        organize: { title: 'Notes and folders', text: 'Organize everything in a tree, drag to move and find what you need instantly.' },
+        sharing: { title: 'Sharing with permissions', text: 'Share with people or groups, with read or edit access.' },
+        images: { title: 'Images', text: 'Insert images into your notes; they are stored safely alongside the document.' },
+        trash: { title: 'Trash', text: 'Recover what you deleted: notes in the trash are read-only until restored.' },
+        export: { title: 'Export', text: 'Download your notes as PDF or image (PNG/JPG).' },
+      },
+    },
+    legal: {
+      terms: 'Terms and Conditions',
+      privacy: 'Privacy Policy',
+    },
+    login: {
+      subtitle: 'Sign in to access your workspace.',
+      accept: 'I have read and accept the',
+      and: 'and the',
+      required: 'You must accept the terms to continue.',
+      acceptRequiredError: 'You must accept the Terms and Conditions and the Privacy Policy to sign in.',
+      secure: 'Secure access with your Google account. We never store passwords.',
+      brandTitle: 'Your ideas, as a team and in real time',
+      point1: 'Edit notes with your team, at the same time',
+      point2: 'Organize folders, images and files in one place',
+      point3: 'Share with clear permissions and recover what you delete',
+    },
+    search: {
+      label: 'Search folders and notes',
+      placeholder: 'Search by name…',
+      clear: 'Clear search',
+      searching: 'Searching…',
+      results: 'Search results',
+      noResults: 'No results for “{query}”',
+      error: 'The search could not be completed.',
+      refine: 'There are more matches: refine your search.',
     },
     auth: {
       loginWithGoogle: 'Sign in with Google',

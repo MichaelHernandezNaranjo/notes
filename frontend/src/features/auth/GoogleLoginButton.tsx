@@ -2,15 +2,37 @@ import { useI18n } from '../../i18n/I18nProvider';
 import { useAuth } from './AuthContext';
 
 /** Button that kicks off the Google OAuth 2.0 Authorization Code Flow. */
-export function GoogleLoginButton() {
+export function GoogleLoginButton({
+  blocked = false,
+  onBlocked,
+  onBeforeLogin,
+}: {
+  /** When true the button looks disabled and, instead of signing in, calls `onBlocked` (so we can explain why). */
+  blocked?: boolean;
+  onBlocked?: () => void;
+  /** Runs right before redirecting to Google (e.g. to record the accepted terms version). */
+  onBeforeLogin?: () => void;
+}) {
   const { loginWithGoogle } = useAuth();
   const { t } = useI18n();
 
   return (
     <button
       type="button"
-      onClick={loginWithGoogle}
-      className="flex items-center gap-3 rounded-lg border border-border-subtle bg-bg-elevated px-5 py-3 text-sm font-medium text-neutral-900 transition hover:border-accent-blue hover:shadow-[0_0_0_1px_var(--color-accent-blue)]"
+      aria-disabled={blocked}
+      onClick={() => {
+        if (blocked) {
+          onBlocked?.();
+          return;
+        }
+        onBeforeLogin?.();
+        loginWithGoogle();
+      }}
+      className={`flex w-full items-center justify-center gap-3 rounded-lg border border-border-subtle bg-bg-base px-5 py-3 text-sm font-medium text-neutral-900 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-blue ${
+        blocked
+          ? 'cursor-not-allowed opacity-50'
+          : 'hover:border-accent-blue hover:shadow-[0_0_0_1px_var(--color-accent-blue)]'
+      }`}
     >
       <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
         <path

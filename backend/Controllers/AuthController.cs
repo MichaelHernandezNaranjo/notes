@@ -20,7 +20,7 @@ public sealed class AuthController : ControllerBase
     [HttpPost("google/callback")]
     public async Task<ActionResult<AuthResponse>> GoogleCallback([FromBody] LoginRequest request)
     {
-        var result = await _authService.LoginWithGoogleAsync(request.Code, request.RedirectUri);
+        var result = await _authService.LoginWithGoogleAsync(request.Code, request.RedirectUri, request.TermsVersion);
         return Ok(result);
     }
 

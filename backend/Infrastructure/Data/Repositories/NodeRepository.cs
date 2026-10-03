@@ -137,6 +137,24 @@ public sealed class NodeRepository : INodeRepository
             commandType: CommandType.StoredProcedure);
     }
 
+    public async Task<IEnumerable<Node>> GetSharedWithMeAsync(Guid userId)
+    {
+        using var conn = _context.CreateConnection();
+        return await conn.QueryAsync<Node>(
+            "sp_Node_GetSharedWithMe",
+            new { UserId = userId },
+            commandType: CommandType.StoredProcedure);
+    }
+
+    public async Task<IEnumerable<NodeSearchResult>> SearchAsync(Guid userId, string query, int top)
+    {
+        using var conn = _context.CreateConnection();
+        return await conn.QueryAsync<NodeSearchResult>(
+            "sp_Node_Search",
+            new { UserId = userId, Query = query, Top = top },
+            commandType: CommandType.StoredProcedure);
+    }
+
     public async Task<IEnumerable<Node>> GetTrashAsync(Guid userId)
     {
         using var conn = _context.CreateConnection();

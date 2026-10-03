@@ -269,22 +269,6 @@ BEGIN
 END
 GO
 
-CREATE OR ALTER PROCEDURE dbo.sp_Node_GetChildren
-    @ParentId UNIQUEIDENTIFIER = NULL,
-    @UserId   UNIQUEIDENTIFIER
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SELECT n.*,
-           CASE WHEN f.NodeId IS NOT NULL THEN 1 ELSE 0 END AS IsFavorite
-    FROM dbo.Nodes n
-    LEFT JOIN dbo.NodeFavorites f ON f.NodeId = n.Id AND f.UserId = @UserId
-    WHERE ISNULL(n.ParentId, '00000000-0000-0000-0000-000000000000') = ISNULL(@ParentId, '00000000-0000-0000-0000-000000000000')
-      AND n.IsDeleted = 0
-    ORDER BY n.SortOrder;
-END
-GO
-
 CREATE OR ALTER PROCEDURE dbo.sp_Node_GetById
     @NodeId UNIQUEIDENTIFIER
 AS

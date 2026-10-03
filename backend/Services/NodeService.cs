@@ -15,6 +15,8 @@ public interface INodeService
     Task HardDeleteAsync(Guid userId, Guid nodeId);
     Task<IEnumerable<NodeDto>> GetTreeAsync(Guid userId);
     Task<IEnumerable<NodeDto>> GetChildrenAsync(Guid userId, Guid? parentId);
+    Task<IEnumerable<NodeDto>> GetSharedWithMeAsync(Guid userId);
+    Task<IEnumerable<NodeSearchResultDto>> SearchAsync(Guid userId, string query, int limit);
     Task<IEnumerable<NodeDto>> GetRecentAsync(Guid userId, int top);
     Task<IEnumerable<NodeDto>> GetFavoritesAsync(Guid userId);
     Task<IEnumerable<NodeDto>> GetTrashAsync(Guid userId);
@@ -109,8 +111,32 @@ public sealed class NodeService : INodeService
     public async Task<IEnumerable<NodeDto>> GetTreeAsync(Guid userId) =>
         (await _nodeRepository.GetTreeByUserAsync(userId)).Select(Map);
 
-    public async Task<IEnumerable<NodeDto>> GetChildrenAsync(Guid userId, Guid? parentId) =>
-        (await _nodeRepository.GetChildrenAsync(parentId, userId)).Select(Map);
+    public async Task<IEnumerable<NodeDto>> GetChildrenAsync(Guid userId, Guid? parentId)
+    {
+        // Listing a folder requires access to it (the root only ever returns the user's own nodes).
+        if (parentId is not null)
+        {
+            await EnsureAccessAsync(userId, parentId.Value, requireEdit: false);
+        }
+
+        return (await _nodeRepository.GetChildrenAsync(parentId, userId)).Select(Map);
+    }
+
+    public async Task<IEnumerable<NodeDto>> GetSharedWithMeAsync(Guid userId) =>
+        (await _nodeRepository.GetSharedWithMeAsync(userId)).Select(Map);
+
+    public async Task<IEnumerable<NodeSearchResultDto>> SearchAsync(Guid userId, string query, int limit)
+    {
+        query = (query ?? string.Empty).Trim();
+        if (query.Length == 0) return [];
+        if (query.Length > 100) query = query[..100];
+        limit = Math.Clamp(limit, 1, 100);
+
+        return (await _nodeRepository.SearchAsync(userId, query, limit))
+            .Select(r => new NodeSearchResultDto(
+                r.Id, r.ParentId, r.Name, r.Type, r.Path,
+                r.PathIds.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)));
+    }
 
     public async Task<IEnumerable<NodeDto>> GetRecentAsync(Guid userId, int top) =>
         (await _nodeRepository.GetRecentAsync(userId, top)).Select(Map);

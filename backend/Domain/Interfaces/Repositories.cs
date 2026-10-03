@@ -6,7 +6,7 @@ public interface IUserRepository
 {
     Task<User?> GetByGoogleIdAsync(string googleId);
     Task<User?> GetByIdAsync(Guid id);
-    Task<User> UpsertAsync(string googleId, string email, string displayName, string? avatarUrl);
+    Task<User> UpsertAsync(string googleId, string email, string displayName, string? avatarUrl, string? termsVersion);
     Task UpdatePreferredLanguageAsync(Guid userId, string language);
 }
 
@@ -39,6 +39,8 @@ public interface INodeRepository
     Task HardDeleteAsync(Guid nodeId);
     Task<IEnumerable<Node>> GetTreeByUserAsync(Guid userId);
     Task<IEnumerable<Node>> GetChildrenAsync(Guid? parentId, Guid userId);
+    Task<IEnumerable<Node>> GetSharedWithMeAsync(Guid userId);
+    Task<IEnumerable<NodeSearchResult>> SearchAsync(Guid userId, string query, int top);
     Task<Node?> GetByIdAsync(Guid nodeId);
     Task<IEnumerable<Node>> GetRecentAsync(Guid userId, int top);
     Task TouchRecentAsync(Guid userId, Guid nodeId);

@@ -22,6 +22,14 @@ public sealed class NodesController : ControllerBase
     public async Task<ActionResult<IEnumerable<NodeDto>>> GetChildren([FromQuery] Guid? parentId) =>
         Ok(await _nodeService.GetChildrenAsync(User.GetUserId(), parentId));
 
+    [HttpGet("shared")]
+    public async Task<ActionResult<IEnumerable<NodeDto>>> GetSharedWithMe() =>
+        Ok(await _nodeService.GetSharedWithMeAsync(User.GetUserId()));
+
+    [HttpGet("search")]
+    public async Task<ActionResult<IEnumerable<NodeSearchResultDto>>> Search([FromQuery] string q, [FromQuery] int limit = 50) =>
+        Ok(await _nodeService.SearchAsync(User.GetUserId(), q, limit));
+
     [HttpGet("recent")]
     public async Task<ActionResult<IEnumerable<NodeDto>>> GetRecent([FromQuery] int top = 10) =>
         Ok(await _nodeService.GetRecentAsync(User.GetUserId(), top));

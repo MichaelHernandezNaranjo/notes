@@ -1,6 +1,6 @@
 namespace NotesApp.Api.Application.DTOs;
 
-public sealed record LoginRequest(string Code, string RedirectUri);
+public sealed record LoginRequest(string Code, string RedirectUri, string? TermsVersion = null);
 public sealed record RefreshRequest(string RefreshToken);
 public sealed record AuthResponse(string AccessToken, string RefreshToken, UserDto User);
 
@@ -14,6 +14,8 @@ public sealed record NodeDto(
     Guid Id, Guid? ParentId, Guid OwnerId, string Type, string Name,
     string? ContentJson, int SortOrder, bool IsDeleted, DateTime? DeletedAt,
     DateTime CreatedAt, DateTime UpdatedAt, bool IsFavorite, string? Path = null, Guid? DeletedRootId = null);
+
+public sealed record NodeSearchResultDto(Guid Id, Guid? ParentId, string Name, string Type, string Path, string[] PathIds);
 
 public sealed record CreateGroupRequest(string Name, string? Description);
 public sealed record AddGroupMemberRequest(Guid UserId, string Role);

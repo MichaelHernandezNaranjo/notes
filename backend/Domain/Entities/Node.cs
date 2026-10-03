@@ -21,6 +21,18 @@ public sealed class Node
     public Guid? DeletedRootId { get; init; }
 }
 
+public sealed class NodeSearchResult
+{
+    public Guid Id { get; init; }
+    public Guid? ParentId { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public string Type { get; init; } = "Note";
+    /// <summary>Ancestor names (root first).</summary>
+    public string Path { get; init; } = string.Empty;
+    /// <summary>Comma-separated ancestor ids (root first), aligned with <see cref="Path"/>.</summary>
+    public string PathIds { get; init; } = string.Empty;
+}
+
 public sealed class NodeFile
 {
     public Guid Id { get; init; }

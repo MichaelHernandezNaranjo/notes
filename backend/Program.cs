@@ -126,6 +126,11 @@ app.Use(async (context, next) =>
     {
         await next();
     }
+    catch (TermsNotAcceptedException ex) when (!context.Response.HasStarted)
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message, code = "terms_not_accepted", requiredVersion = ex.RequiredVersion });
+    }
     catch (Microsoft.Data.SqlClient.SqlException ex) when (!context.Response.HasStarted && (ex.Number == 50001 || ex.Number == 50002))
     {
         // 50001 = duplicate sibling name, 50002 = empty name (raised by the Node stored procedures).

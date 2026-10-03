@@ -9,6 +9,8 @@ public sealed class User
     public string? AvatarUrl { get; init; }
     public string PreferredLanguage { get; init; } = "es";
     public bool IsActive { get; init; }
+    public string? TermsAcceptedVersion { get; init; }
+    public DateTime? TermsAcceptedAt { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
 }

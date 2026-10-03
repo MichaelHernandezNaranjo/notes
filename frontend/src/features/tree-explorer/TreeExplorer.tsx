@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { nodesApi, type NodeDto } from '../../services/nodesApi';
+import { nodesApi, type NodeDto, type NodeSearchResult } from '../../services/nodesApi';
 import { useI18n } from '../../i18n/I18nProvider';
 import { TreeNode, type DraftNode } from './TreeNode';
 import { InlineNameInput } from './InlineNameInput';
+import { ExplorerSearch } from './ExplorerSearch';
 import { ContextMenu, type ContextMenuState } from './ContextMenu';
-
-type SectionKey = 'recent' | 'favorites' | 'trash';
+import { EXPLORER_STALE_MS, useExplorerStore, type SectionKey } from './ExplorerProvider';
 
 const DRAG_MIME = 'text/node-ids';
 
@@ -36,23 +36,30 @@ function orderTrash(items: NodeDto[]): Array<{ node: NodeDto; nested: boolean }>
 /** VS Code style sidebar: fixed sections (Recent/Favorites/Trash) + nested folder tree with multi-selection and Drag & Drop. */
 export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken = 0 }: TreeExplorerProps) {
   const { t } = useI18n();
-  const [rootNodes, setRootNodes] = useState<NodeDto[]>([]);
-  const [childrenByParent, setChildrenByParent] = useState<Record<string, NodeDto[]>>({});
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Data and UI state live in the ExplorerProvider (above the router), so they survive module changes.
+  const {
+    rootNodes,
+    setRootNodes,
+    childrenByParent,
+    setChildrenByParent,
+    expanded,
+    setExpanded,
+    selectedIds,
+    setSelectedIds,
+    anchorId,
+    setAnchorId,
+    openSections,
+    setOpenSections,
+    sectionData,
+    setSectionData,
+    searchQuery,
+    setSearchQuery,
+    loadedAt,
+    scrollTop,
+  } = useExplorerStore();
   const expandedRef = useRef(expanded);
   expandedRef.current = expanded;
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [anchorId, setAnchorId] = useState<string | null>(null);
-  const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
-    recent: true,
-    favorites: true,
-    trash: false,
-  });
-  const [sectionData, setSectionData] = useState<Record<SectionKey, NodeDto[]>>({
-    recent: [],
-    favorites: [],
-    trash: [],
-  });
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [draft, setDraft] = useState<DraftNode | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -60,40 +67,62 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
   const refreshRoot = useCallback(async () => {
     const children = await nodesApi.getChildren(null);
     setRootNodes(children);
-  }, []);
+  }, [setRootNodes]);
 
   const refreshSections = useCallback(async () => {
-    const [recent, favorites, trash] = await Promise.all([
+    const [recent, favorites, shared, trash] = await Promise.all([
       nodesApi.getRecent(10),
       nodesApi.getFavorites(),
+      nodesApi.getShared(),
       nodesApi.getTrash(),
     ]);
-    setSectionData({ recent, favorites, trash });
-  }, []);
+    setSectionData({ recent, favorites, shared, trash });
+  }, [setSectionData]);
 
+  const loadChildren = useCallback(
+    async (parentId: string) => {
+      const children = await nodesApi.getChildren(parentId);
+      setChildrenByParent((prev) => ({ ...prev, [parentId]: children }));
+    },
+    [setChildrenByParent],
+  );
+
+  /**
+   * Reloads root, every expanded folder and the side sections (also used after restore).
+   * Concurrent calls share one in-flight request (e.g. React StrictMode double-running effects in dev).
+   */
+  const inflight = useRef<Promise<void> | null>(null);
+  const fullRefresh = useCallback((): Promise<void> => {
+    inflight.current ??= (async () => {
+      await Promise.all([refreshRoot(), refreshSections(), ...[...expandedRef.current].map((id) => loadChildren(id))]);
+      loadedAt.current = Date.now();
+    })().finally(() => {
+      inflight.current = null;
+    });
+    return inflight.current;
+  }, [refreshRoot, refreshSections, loadChildren, loadedAt]);
+
+  // First visit: load. Coming back later: keep showing the cached tree and revalidate silently when stale.
   useEffect(() => {
-    refreshRoot();
-    refreshSections();
-  }, [refreshRoot, refreshSections]);
-
-
-
-  const loadChildren = useCallback(async (parentId: string) => {
-    const children = await nodesApi.getChildren(parentId);
-    setChildrenByParent((prev) => ({ ...prev, [parentId]: children }));
-  }, []);
-
-  /** Reloads root, every expanded folder and the side sections (used after restore). */
-  const fullRefresh = useCallback(async () => {
-    await Promise.all([refreshRoot(), refreshSections(), ...[...expandedRef.current].map((id) => loadChildren(id))]);
-  }, [refreshRoot, refreshSections, loadChildren]);
-
-  const firstRefresh = useRef(true);
-  useEffect(() => {
-    if (firstRefresh.current) {
-      firstRefresh.current = false;
-      return;
+    if (loadedAt.current === 0 || Date.now() - loadedAt.current > EXPLORER_STALE_MS) {
+      void fullRefresh().catch(() => undefined);
     }
+  }, [fullRefresh, loadedAt]);
+
+  // Restore the scroll position when the explorer is shown again, and remember it when it goes away.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = scrollTop.current;
+    return () => {
+      if (el) scrollTop.current = el.scrollTop;
+    };
+  }, [scrollTop]);
+
+  // Reload only when the parent actually bumps `refreshToken` (e.g. after restoring from the editor).
+  const lastRefreshToken = useRef(refreshToken);
+  useEffect(() => {
+    if (lastRefreshToken.current === refreshToken) return;
+    lastRefreshToken.current = refreshToken;
     void fullRefresh();
   }, [refreshToken, fullRefresh]);
 
@@ -451,162 +480,203 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
       [
         { key: 'recent' as SectionKey, icon: '🕒', label: t('nav.recent'), items: sectionData.recent },
         { key: 'favorites' as SectionKey, icon: '⭐', label: t('nav.favorites'), items: sectionData.favorites },
+        { key: 'shared' as SectionKey, icon: '🤝', label: t('nav.shared'), items: sectionData.shared },
         { key: 'trash' as SectionKey, icon: '🗑️', label: t('nav.trash'), items: sectionData.trash },
       ] as const,
     [sectionData, t],
   );
 
-  return (
-    <div
-      className="flex h-full flex-col overflow-y-auto bg-bg-elevated text-sm text-neutral-800 outline-none"
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-      onClick={() => setContextMenu(null)}
-    >
-      {sections.map((section) => (
-        <div key={section.key} className="border-b border-border-subtle">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-3 py-2 font-medium text-neutral-700 hover:bg-black/5"
-            onClick={() => setOpenSections((prev) => ({ ...prev, [section.key]: !prev[section.key] }))}
-          >
-            <span>{openSections[section.key] ? '▾' : '▸'}</span>
-            <span>{section.icon}</span>
-            <span>{section.label}</span>
-            <span className="ml-auto text-xs text-neutral-500">{section.items.length}</span>
-          </button>
-          {openSections[section.key] && (
-            <div className="pb-1">
-              {section.items.length === 0 && (
-                <p className="px-6 py-1 text-xs text-neutral-500">{t('tree.empty')}</p>
-              )}
-              {(section.key === 'trash' ? orderTrash(section.items) : section.items.map((n) => ({ node: n, nested: false }))).map(
-                ({ node, nested }) => (
-                  <button
-                    key={node.id}
-                    type="button"
-                    title={section.key === 'trash' && node.path ? `${node.path} / ${node.name}` : node.name}
-                    // Folders are not notes: they must never open the editor from these lists.
-                    onClick={() => node.type === 'Note' && onOpenNote(node.id)}
-                    onContextMenu={(e) => {
-                      if (section.key !== 'trash') return;
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setContextMenu({ x: e.clientX, y: e.clientY, node, count: 1 });
-                    }}
-                    style={{ paddingLeft: nested ? 40 : 24 }}
-                    className={`flex w-full items-center gap-2 py-1 pr-3 text-left hover:bg-black/5 ${
-                      activeNodeId === node.id ? 'bg-accent-blue/10 text-accent-blue' : ''
-                    }`}
-                  >
-                    <span>{node.type === 'Folder' ? '📁' : '📝'}</span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate">{node.name}</span>
-                      {section.key === 'trash' && (
-                        <span className="block truncate text-xs text-neutral-500">
-                          {node.path ? node.path : t('tree.rootLocation')}
-                        </span>
-                      )}
-                    </span>
-                  </button>
-                ),
-              )}
-            </div>
-          )}
-        </div>
-      ))}
+  /** Expands the ancestors of a search hit (plus the hit itself when it is a folder), selects it and scrolls to it. */
+  const revealResult = useCallback(
+    async (result: NodeSearchResult) => {
+      setSearchQuery('');
+      const chain = result.type === 'Folder' ? [...result.pathIds, result.id] : result.pathIds;
+      setExpanded((prev) => new Set([...prev, ...chain]));
+      // Shared items hang from the "Shared with me" section instead of the user's own root.
+      const topId = result.pathIds[0] ?? result.id;
+      if (!rootNodes.some((n) => n.id === topId)) setOpenSections((prev) => ({ ...prev, shared: true }));
 
-      <div className="flex items-center justify-between px-3 py-2 font-medium text-neutral-700">
-        <span>
-          {t('nav.explorer')}
-          {selectedIds.size > 1 && (
-            <span className="ml-2 text-xs font-normal text-neutral-500">({selectedIds.size})</span>
-          )}
-        </span>
-        <div className="flex gap-1">
-          <button
-            type="button"
-            title={t('tree.newNote')}
-            className="rounded px-1.5 hover:bg-black/10"
-            onClick={(e) => {
-              e.stopPropagation();
-              void startCreate(createTargetId, 'Note');
-            }}
-          >
-            📝+
-          </button>
-          <button
-            type="button"
-            title={t('tree.newFolder')}
-            className="rounded px-1.5 hover:bg-black/10"
-            onClick={(e) => {
-              e.stopPropagation();
-              void startCreate(createTargetId, 'Folder');
-            }}
-          >
-            📁+
-          </button>
-        </div>
-      </div>
+      await Promise.all(chain.map((id) => loadChildren(id).catch(() => undefined)));
+      setSelectedIds(new Set([result.id]));
+      setAnchorId(result.id);
+      if (result.type === 'Note') onOpenNote(result.id);
+
+      setTimeout(() => {
+        scrollRef.current
+          ?.querySelector(`[data-node-id="${result.id}"]`)
+          ?.scrollIntoView({ block: 'nearest' });
+      }, 80);
+    },
+    [rootNodes, loadChildren, onOpenNote, setSearchQuery, setExpanded, setOpenSections, setSelectedIds, setAnchorId],
+  );
+
+  const searching = searchQuery.trim().length > 0;
+
+  /** One tree row (recursive) wired to the shared selection / drag & drop / inline-edit handlers. */
+  const renderNode = (node: NodeDto) => (
+    <TreeNode
+      key={node.id}
+      node={node}
+      depth={0}
+      isExpanded={expanded.has(node.id)}
+      childrenNodes={childrenByParent[node.id] ?? []}
+      activeNodeId={activeNodeId}
+      selectedIds={selectedIds}
+      onSelect={handleSelect}
+      onDragStartNode={handleDragStartNode}
+      onDropOnFolder={(e, targetId) => {
+        const ids = readDraggedIds(e);
+        if (ids.length > 0) void handleDrop(ids, targetId);
+      }}
+      onContextMenu={(e, targetNode) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!selectedIds.has(targetNode.id)) {
+          setSelectedIds(new Set([targetNode.id]));
+          setAnchorId(targetNode.id);
+        }
+        const count = selectedIds.has(targetNode.id) ? selectedIds.size : 1;
+        setContextMenu({ x: e.clientX, y: e.clientY, node: targetNode, count });
+      }}
+      childrenByParent={childrenByParent}
+      expanded={expanded}
+      editingId={editingId}
+      draft={draft}
+      siblingNames={siblingNames}
+      onStartRename={startRename}
+      onSubmitRename={submitRename}
+      onSubmitDraft={submitDraft}
+      onCancelEdit={cancelEdit}
+    />
+  );
+
+  return (
+    <div className="flex h-full flex-col bg-bg-elevated text-sm text-neutral-800">
+      <ExplorerSearch query={searchQuery} onQueryChange={setSearchQuery} onSelect={(r) => void revealResult(r)} />
 
       <div
-        role="tree"
-        aria-multiselectable="true"
-        className="flex-1"
-        onClick={() => {
-          setSelectedIds(new Set());
-          setAnchorId(null);
-        }}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault();
-          const ids = readDraggedIds(e);
-          if (ids.length > 0) void handleDrop(ids, null);
-        }}
+        ref={scrollRef}
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto outline-none"
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        onClick={() => setContextMenu(null)}
+        hidden={searching}
       >
-        {draft && draft.parentId === null && (
-          <div style={{ paddingLeft: 12 }} className="flex items-center gap-1.5 py-1 pr-2">
-            <span className="w-3" />
-            <span>{draft.type === 'Folder' ? '📁' : '📝'}</span>
-            <InlineNameInput takenNames={siblingNames(null)} onSubmit={submitDraft} onCancel={cancelEdit} />
+        {sections.map((section) => (
+          <div key={section.key} className="border-b border-border-subtle">
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-3 py-2 font-medium text-neutral-700 hover:bg-black/5"
+              onClick={() => setOpenSections((prev) => ({ ...prev, [section.key]: !prev[section.key] }))}
+            >
+              <span>{openSections[section.key] ? '▾' : '▸'}</span>
+              <span>{section.icon}</span>
+              <span>{section.label}</span>
+              <span className="ml-auto text-xs text-neutral-500">{section.items.length}</span>
+            </button>
+            {openSections[section.key] && (
+              <div className="pb-1">
+                {section.items.length === 0 && (
+                  <p className="px-6 py-1 text-xs text-neutral-500">{t('tree.empty')}</p>
+                )}
+                {section.key === 'shared' ? (
+                  // Shared folders are expandable like the own tree (children load through the access-checked API).
+                  <div role="tree">{section.items.map((node) => renderNode(node))}</div>
+                ) : (
+                  (section.key === 'trash' ? orderTrash(section.items) : section.items.map((n) => ({ node: n, nested: false }))).map(
+                    ({ node, nested }) => (
+                      <button
+                        key={node.id}
+                        type="button"
+                        title={section.key === 'trash' && node.path ? `${node.path} / ${node.name}` : node.name}
+                        // Folders are not notes: they must never open the editor from these lists.
+                        onClick={() => node.type === 'Note' && onOpenNote(node.id)}
+                        onContextMenu={(e) => {
+                          if (section.key !== 'trash') return;
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setContextMenu({ x: e.clientX, y: e.clientY, node, count: 1 });
+                        }}
+                        style={{ paddingLeft: nested ? 40 : 24 }}
+                        className={`flex w-full items-center gap-2 py-1 pr-3 text-left hover:bg-black/5 ${
+                          activeNodeId === node.id ? 'bg-accent-blue/10 text-accent-blue' : ''
+                        }`}
+                      >
+                        <span>{node.type === 'Folder' ? '📁' : '📝'}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">{node.name}</span>
+                          {section.key === 'trash' && (
+                            <span className="block truncate text-xs text-neutral-500">
+                              {node.path ? node.path : t('tree.rootLocation')}
+                            </span>
+                          )}
+                        </span>
+                      </button>
+                    ),
+                  )
+                )}
+              </div>
+            )}
           </div>
-        )}
-        {rootNodes.map((node) => (
-          <TreeNode
-            key={node.id}
-            node={node}
-            depth={0}
-            isExpanded={expanded.has(node.id)}
-            childrenNodes={childrenByParent[node.id] ?? []}
-            activeNodeId={activeNodeId}
-            selectedIds={selectedIds}
-            onSelect={handleSelect}
-            onDragStartNode={handleDragStartNode}
-            onDropOnFolder={(e, targetId) => {
-              const ids = readDraggedIds(e);
-              if (ids.length > 0) void handleDrop(ids, targetId);
-            }}
-            onContextMenu={(e, targetNode) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (!selectedIds.has(targetNode.id)) {
-                setSelectedIds(new Set([targetNode.id]));
-                setAnchorId(targetNode.id);
-              }
-              const count = selectedIds.has(targetNode.id) ? selectedIds.size : 1;
-              setContextMenu({ x: e.clientX, y: e.clientY, node: targetNode, count });
-            }}
-            childrenByParent={childrenByParent}
-            expanded={expanded}
-            editingId={editingId}
-            draft={draft}
-            siblingNames={siblingNames}
-            onStartRename={startRename}
-            onSubmitRename={submitRename}
-            onSubmitDraft={submitDraft}
-            onCancelEdit={cancelEdit}
-          />
         ))}
+
+        <div className="flex items-center justify-between px-3 py-2 font-medium text-neutral-700">
+          <span>
+            {t('nav.explorer')}
+            {selectedIds.size > 1 && (
+              <span className="ml-2 text-xs font-normal text-neutral-500">({selectedIds.size})</span>
+            )}
+          </span>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              title={t('tree.newNote')}
+              className="rounded px-1.5 hover:bg-black/10"
+              onClick={(e) => {
+                e.stopPropagation();
+                void startCreate(createTargetId, 'Note');
+              }}
+            >
+              📝+
+            </button>
+            <button
+              type="button"
+              title={t('tree.newFolder')}
+              className="rounded px-1.5 hover:bg-black/10"
+              onClick={(e) => {
+                e.stopPropagation();
+                void startCreate(createTargetId, 'Folder');
+              }}
+            >
+              📁+
+            </button>
+          </div>
+        </div>
+
+        <div
+          role="tree"
+          aria-multiselectable="true"
+          className="flex-1"
+          onClick={() => {
+            setSelectedIds(new Set());
+            setAnchorId(null);
+          }}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const ids = readDraggedIds(e);
+            if (ids.length > 0) void handleDrop(ids, null);
+          }}
+        >
+          {draft && draft.parentId === null && (
+            <div style={{ paddingLeft: 12 }} className="flex items-center gap-1.5 py-1 pr-2">
+              <span className="w-3" />
+              <span>{draft.type === 'Folder' ? '📁' : '📝'}</span>
+              <InlineNameInput takenNames={siblingNames(null)} onSubmit={submitDraft} onCancel={cancelEdit} />
+            </div>
+          )}
+          {rootNodes.map((node) => renderNode(node))}
+        </div>
       </div>
 
       {contextMenu && (

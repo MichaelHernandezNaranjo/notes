@@ -29,12 +29,12 @@ public sealed class UserRepository : IUserRepository
             commandType: CommandType.StoredProcedure);
     }
 
-    public async Task<User> UpsertAsync(string googleId, string email, string displayName, string? avatarUrl)
+    public async Task<User> UpsertAsync(string googleId, string email, string displayName, string? avatarUrl, string? termsVersion)
     {
         using var conn = _context.CreateConnection();
         return await conn.QuerySingleAsync<User>(
             "sp_User_Upsert",
-            new { GoogleId = googleId, Email = email, DisplayName = displayName, AvatarUrl = avatarUrl },
+            new { GoogleId = googleId, Email = email, DisplayName = displayName, AvatarUrl = avatarUrl, TermsVersion = termsVersion },
             commandType: CommandType.StoredProcedure);
     }
 

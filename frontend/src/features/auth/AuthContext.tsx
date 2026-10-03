@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { apiJson, clearTokens, getAccessToken, storeTokens, type AuthResponse, type UserDto } from '../../services/apiClient';
+import { clearAcceptedTerms, getAcceptedTermsVersion } from './termsAcceptance';
 
 type AuthContextValue = {
   user: UserDto | null;
@@ -53,8 +54,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const result = await apiJson<AuthResponse>('/api/auth/google/callback', {
         method: 'POST',
-        body: JSON.stringify({ code, redirectUri }),
+        // The server rejects the login unless the current Terms version was explicitly accepted.
+        body: JSON.stringify({ code, redirectUri, termsVersion: getAcceptedTermsVersion() }),
       });
+      clearAcceptedTerms();
       storeTokens(result.accessToken, result.refreshToken);
       setUser(result.user);
     } finally {
