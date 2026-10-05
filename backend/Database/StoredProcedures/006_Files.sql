@@ -11,10 +11,27 @@ CREATE OR ALTER PROCEDURE dbo.sp_File_Create
 AS
 BEGIN
     SET NOCOUNT ON;
+    SET XACT_ABORT ON;
     DECLARE @NewId UNIQUEIDENTIFIER = NEWID();
+    DECLARE @Owner UNIQUEIDENTIFIER = (SELECT OwnerId FROM dbo.Nodes WHERE Id = @NodeId);
 
-    INSERT INTO dbo.NodeFiles (Id, NodeId, StoredName, OriginalName, ContentType, SizeBytes, CreatedBy)
-    VALUES (@NewId, @NodeId, @StoredName, @OriginalName, @ContentType, @SizeBytes, @CreatedBy);
+    BEGIN TRY
+        BEGIN TRAN;
+        -- Serialize uploads per owner so two simultaneous uploads cannot both slip under the quota.
+        IF @Owner IS NOT NULL
+        BEGIN
+            DECLARE @Lock INT = (SELECT 1 FROM dbo.Users WITH (UPDLOCK, HOLDLOCK) WHERE Id = @Owner);
+            EXEC dbo.sp_Storage_AssertAllowance @Owner, @SizeBytes;
+        END
+
+        INSERT INTO dbo.NodeFiles (Id, NodeId, StoredName, OriginalName, ContentType, SizeBytes, CreatedBy)
+        VALUES (@NewId, @NodeId, @StoredName, @OriginalName, @ContentType, @SizeBytes, @CreatedBy);
+        COMMIT TRAN;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRAN;
+        THROW;
+    END CATCH
 
     SELECT * FROM dbo.NodeFiles WHERE Id = @NewId;
 END

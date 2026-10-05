@@ -47,6 +47,9 @@ services:
       Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID}
       Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET}
       Cors__AllowedOrigins__0: https://notes.d4nthi.com
+      # Root administrator(s): get the super admin role at sign-in (only when Google verifies the e-mail).
+      # More admins are appointed from the /admin panel by existing super admins.
+      Admin__SuperAdminEmails__0: ${SUPERADMIN_EMAIL:-michaelhernandeznaranjo@gmail.com}
 
   frontend:
     build:

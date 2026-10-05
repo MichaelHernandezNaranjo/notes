@@ -61,6 +61,7 @@ export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed
   const resolverRef = useRef<ReturnType<typeof createFileResolver> | null>(null);
   resolverRef.current ??= createFileResolver();
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [quotaReached, setQuotaReached] = useState(false);
 
   const editor = useCreateBlockNote(
     withCollaboration({
@@ -92,6 +93,7 @@ export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed
     const provider = providerRef.current!;
     provider.onPresenceUpdate(setPresence);
     provider.onSynced(() => setLoadState('ready'));
+    provider.onQuotaExceeded(() => setQuotaReached(true));
     if (provider.isSynced) setLoadState('ready');
 
     // Never leave the skeleton up forever: fail after a timeout or a connection error.
@@ -150,6 +152,17 @@ export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed
               {t('tree.restore')}
             </button>
           )}
+        </div>
+      )}
+      {quotaReached && (
+        <div
+          role="alert"
+          className="flex shrink-0 items-center justify-between gap-3 border-b border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800 sm:px-4"
+        >
+          <span className="min-w-0">{t('storage.editorFull')}</span>
+          <button type="button" onClick={() => setQuotaReached(false)} className="touch-target shrink-0 underline">
+            {t('common.close')}
+          </button>
         </div>
       )}
       {uploadError && (

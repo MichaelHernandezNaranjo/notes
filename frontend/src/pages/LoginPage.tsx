@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { LegalModal } from '../components/LegalModal';
 import { GoogleLoginButton } from '../features/auth/GoogleLoginButton';
 import { useI18n } from '../i18n/I18nProvider';
-import { TERMS_VERSION, type LegalKind } from '../legal/legalTexts';
+import { CONTACT_EMAIL, TERMS_VERSION, type LegalKind } from '../legal/legalTexts';
 import { acceptTerms } from '../features/auth/termsAcceptance';
 
 const POINTS = ['point1', 'point2', 'point3'] as const;
@@ -26,6 +27,9 @@ export function LoginPage() {
   const [accepted, setAccepted] = useState(false);
   const [showError, setShowError] = useState(false);
   const [legal, setLegal] = useState<LegalKind | null>(null);
+  const [searchParams] = useSearchParams();
+  const rawError = searchParams.get('error');
+  const authError = rawError === 'blocked' || rawError === 'terms' || rawError === 'failed' ? rawError : null;
 
   /** Plain click keeps the user on the login (modal); ctrl/middle click or a crawler follows the real /terms|/privacy URL. */
   const openLegal = (e: React.MouseEvent, kind: LegalKind) => {
@@ -76,6 +80,20 @@ export function LoginPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">{t('app.name')}</h1>
           <p className="mt-1 text-sm text-neutral-600">{t('login.subtitle')}</p>
           <p className="mt-3 text-sm leading-relaxed text-neutral-700">{t('login.about')}</p>
+
+          {authError && (
+            <div role="alert" className="mt-5 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+              <p className="font-semibold">{t(`login.errors.${authError}.title`)}</p>
+              <p className="mt-0.5">{t(`login.errors.${authError}.text`)}</p>
+              {authError === 'blocked' && (
+                <p className="mt-1">
+                  <a className="underline" href={`mailto:${CONTACT_EMAIL}`}>
+                    {CONTACT_EMAIL}
+                  </a>
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="mt-8 rounded-2xl border border-border-subtle bg-bg-elevated p-6 shadow-sm">
             <label className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed text-neutral-700">

@@ -20,6 +20,9 @@ read -rp "GOOGLE_CLIENT_ID: " GOOGLE_CLIENT_ID
 read -rsp "GOOGLE_CLIENT_SECRET (hidden): " GOOGLE_CLIENT_SECRET
 echo
 
+read -rp "SUPERADMIN_EMAIL [michaelhernandeznaranjo@gmail.com]: " SUPERADMIN_EMAIL
+SUPERADMIN_EMAIL=${SUPERADMIN_EMAIL:-michaelhernandeznaranjo@gmail.com}
+
 # SA password must satisfy SQL Server complexity: upper, lower, digits.
 cat > "$BASE/.env" <<EOF
 SA_PASSWORD=Sa$(gen 30)9x
@@ -27,6 +30,7 @@ APP_DB_PASSWORD=App$(gen 30)7y
 JWT_SECRET=$(gen 64)
 GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET
+SUPERADMIN_EMAIL=$SUPERADMIN_EMAIL
 BACKUP_DIR=$BASE/backups
 EOF
 chmod 600 "$BASE/.env"

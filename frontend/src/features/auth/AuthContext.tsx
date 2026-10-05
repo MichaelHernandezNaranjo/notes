@@ -34,6 +34,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  // Re-sync the profile once per page load: roles (e.g. super admin) can change on the server while a session is open.
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    apiJson<UserDto>('/api/users/me')
+      .then((fresh) => setUser((prev) => (prev && prev.id === fresh.id ? { ...prev, ...fresh } : prev)))
+      .catch(() => undefined);
+  }, []);
+
   /** Redirects the browser to Google's OAuth 2.0 consent screen (Authorization Code Flow). */
   const loginWithGoogle = useCallback(() => {
     const redirectUri = `${window.location.origin}/auth/google/callback`;

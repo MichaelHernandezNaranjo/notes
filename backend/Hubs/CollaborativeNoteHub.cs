@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using NotesApp.Api.Domain.Interfaces;
+using NotesApp.Api.Infrastructure.Data.Repositories;
 using NotesApp.Api.Infrastructure.Realtime;
+using NotesApp.Api.Services;
 
 namespace NotesApp.Api.Hubs;
 
@@ -20,12 +22,17 @@ public sealed class CollaborativeNoteHub : Hub
     private readonly IYjsDocumentStore _documentStore;
     private readonly INodeRepository _nodeRepository;
     private readonly IPermissionRepository _permissionRepository;
+    private readonly IAdminRepository _adminRepository;
+    private readonly IUserStatusService _userStatus;
 
-    public CollaborativeNoteHub(IYjsDocumentStore documentStore, INodeRepository nodeRepository, IPermissionRepository permissionRepository)
+    public CollaborativeNoteHub(IYjsDocumentStore documentStore, INodeRepository nodeRepository, IPermissionRepository permissionRepository,
+        IAdminRepository adminRepository, IUserStatusService userStatus)
     {
         _documentStore = documentStore;
         _nodeRepository = nodeRepository;
         _permissionRepository = permissionRepository;
+        _adminRepository = adminRepository;
+        _userStatus = userStatus;
     }
 
     private Guid UserId => Guid.Parse(Context.UserIdentifier ?? Context.User!.FindFirst("sub")!.Value);
@@ -63,6 +70,13 @@ public sealed class CollaborativeNoteHub : Hub
 
     private async Task EnsureEditableAsync(Guid nodeId)
     {
+        // The account may have been blocked after this connection was opened.
+        var status = await _userStatus.GetAsync(UserId);
+        if (!status.Exists || !status.IsActive)
+        {
+            throw new HubException("account_blocked");
+        }
+
         var access = await _permissionRepository.CheckAccessAsync(nodeId, UserId);
         if (access is null || access == "Read")
         {
@@ -90,6 +104,16 @@ public sealed class CollaborativeNoteHub : Hub
     public async Task SaveSnapshot(Guid nodeId, byte[] state)
     {
         await EnsureEditableAsync(nodeId);
+
+        // The size is charged to the note's owner. Growth past their quota is refused; shrinking is always allowed.
+        try
+        {
+            await _adminRepository.AssertContentAllowanceAsync(nodeId, state.Length);
+        }
+        catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50003)
+        {
+            throw new HubException("quota_exceeded");
+        }
 
         _documentStore.ApplyUpdate(nodeId, state);
         _documentStore.ScheduleFlush(nodeId, _nodeRepository, PersistDebounce);

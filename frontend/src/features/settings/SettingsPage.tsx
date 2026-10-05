@@ -1,4 +1,5 @@
 import { useAuth } from '../auth/AuthContext';
+import { StorageUsage } from './StorageUsage';
 import { useI18n } from '../../i18n/I18nProvider';
 import type { Language } from '../../i18n/translations';
 
@@ -19,6 +20,16 @@ export function SettingsPage() {
             <p className="truncate text-xs text-neutral-500">{user?.email}</p>
           </div>
         </div>
+      </section>
+
+      <section className="mb-6 rounded-lg border border-border-subtle bg-bg-elevated p-4 sm:mb-8">
+        <h3 className="mb-3 text-sm font-medium text-neutral-700">{t('storage.title')}</h3>
+        <StorageUsage />
+      </section>
+
+      <section className="mb-6 rounded-lg border border-border-subtle bg-bg-elevated p-4 sm:mb-8">
+        <h3 className="mb-3 text-sm font-medium text-neutral-700">{t('storage.title')}</h3>
+        <StorageUsage />
       </section>
 
       <section className="mb-6 rounded-lg border border-border-subtle bg-bg-elevated p-4 sm:mb-8">

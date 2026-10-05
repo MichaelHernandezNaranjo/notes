@@ -1,7 +1,7 @@
 import * as signalR from '@microsoft/signalr';
 import * as Y from 'yjs';
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from 'y-protocols/awareness';
-import { apiUrl, getValidAccessToken } from '../../services/apiClient';
+import { apiUrl, endSessionBlocked, getValidAccessToken } from '../../services/apiClient';
 
 export type PresenceUser = { connectionId: string; name: string };
 
@@ -46,6 +46,7 @@ export class YjsSignalRProvider {
   private readonly nodeId: string;
   private onPresenceChange: ((users: PresenceUser[]) => void) | null = null;
   private onSyncedChange: (() => void) | null = null;
+  private onQuotaChange: (() => void) | null = null;
   private readonly presence = new Map<string, string>();
 
   /** True once `disconnect()` has been requested; guards against completing a stale `connect()`. */
@@ -102,6 +103,11 @@ export class YjsSignalRProvider {
     this.onSyncedChange = callback;
   }
 
+  /** Fires when the server refuses to save because the note owner is over their storage limit. */
+  onQuotaExceeded(callback: () => void) {
+    this.onQuotaChange = callback;
+  }
+
   get isSynced(): boolean {
     return this.synced;
   }
@@ -113,6 +119,16 @@ export class YjsSignalRProvider {
       // Ignore errors caused by the connection dropping mid-flight (teardown races);
       // anything else is logged for visibility.
       if (this.disposed) return;
+      const message = String((error as Error)?.message ?? '');
+      // The note's owner reached their storage limit: the edit is kept locally but not saved. Tell the user.
+      if (message.includes('quota_exceeded')) {
+        this.onQuotaChange?.();
+        return;
+      }
+      if (message.includes('account_blocked')) {
+        endSessionBlocked();
+        return;
+      }
       console.error(`[YjsSignalRProvider] Failed to invoke ${method}:`, error);
     });
   }

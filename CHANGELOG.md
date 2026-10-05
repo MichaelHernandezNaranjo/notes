@@ -4,6 +4,20 @@ La versión que se muestra en «Acerca de» sale de `frontend/package.json` (ún
 Se sube antes de cada push y se añade aquí una entrada. Esquema semver: parche = correcciones y ajustes,
 menor = funcionalidades nuevas, mayor = cambios incompatibles.
 
+## 1.1.0 — 2026-10-05
+
+- **Panel de administración (`/admin`, solo super admin):**
+  - Resumen con usuarios, activos, en línea, bloqueados, notas, imágenes, papelera, capacidad de la base de datos y del disco, mayores usuarios y gráficos de actividad.
+  - Usuarios: último inicio de sesión y actividad, estado en línea, espacio usado, búsqueda, filtros, orden y paginación; bloquear/desbloquear, cambiar el límite de espacio y nombrar o quitar administradores.
+  - Avisos generales o individuales, con importancia y caducidad, entregados en tiempo real.
+  - Solo muestra metadatos y espacio usado, nunca el contenido de las notas. Cada acción queda en el registro de auditoría.
+- **Super admin:** el correo raíz (`SUPERADMIN_EMAIL`) lo recibe al iniciar sesión (solo si Google verifica el correo) y no se puede degradar ni bloquear. Los demás se nombran desde el panel, siempre quedando al menos uno.
+- **Límite de espacio por usuario (250 MB por defecto, ajustable; sin límite para administradores):** se aplica al subir imágenes, guardar notas y duplicar. Al alcanzarlo la cuenta queda en solo lectura y borrado, sin bloquearse. Barra de uso y avisos en Ajustes.
+- **Bloqueo de cuentas real:** se aplica al iniciar sesión, al renovar el token, en cada petición y en las conexiones en tiempo real (corrige que `IsActive` no se comprobaba en ningún sitio). El usuario ve un mensaje con el contacto de soporte.
+- Presencia en tiempo real (conexión ligera) y banner de avisos.
+- Migración `0004` (columnas de administración, tamaño por nota, avisos) aplicada automáticamente con copia de seguridad previa. `db-init` informa de los usuarios que ya superen el límite.
+- Términos y Política actualizados (último acceso, límites de espacio, suspensión, avisos): versión `2026-10-05`, cada usuario acepta de nuevo en su próximo inicio de sesión.
+
 ## 1.0.2 — 2026-10-03
 
 - Páginas públicas `/terms` y `/privacy` (sin sesión, con selector de idioma), necesarias para la verificación de Google.

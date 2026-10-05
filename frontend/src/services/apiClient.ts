@@ -4,6 +4,7 @@ export type UserDto = {
   displayName: string;
   avatarUrl: string | null;
   preferredLanguage: string;
+  isSuperAdmin?: boolean;
 };
 
 export type AuthResponse = {
@@ -157,7 +158,20 @@ export async function apiFetch(input: string, init: RequestInit = {}): Promise<R
     }
   }
 
+  // An administrator blocked this account: end the session and explain why on the login screen.
+  if (response.status === 403 && !input.startsWith('/api/auth')) {
+    const body = await response.clone().json().catch(() => null);
+    if (body?.code === 'account_blocked') endSessionBlocked();
+  }
+
   return response;
+}
+
+/** Clears the session and sends the user to the login screen with the "blocked" notice. */
+export function endSessionBlocked(): void {
+  clearTokens();
+  localStorage.removeItem('notesapp.user');
+  if (window.location.pathname !== '/login') window.location.assign('/login?error=blocked');
 }
 
 

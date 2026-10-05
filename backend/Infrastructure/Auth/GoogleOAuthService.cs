@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace NotesApp.Api.Infrastructure.Auth;
 
-public sealed record GoogleUserInfo(string GoogleId, string Email, string DisplayName, string? AvatarUrl);
+public sealed record GoogleUserInfo(string GoogleId, string Email, string DisplayName, string? AvatarUrl, bool EmailVerified);
 
 public interface IGoogleOAuthService
 {
@@ -58,10 +58,16 @@ public sealed class GoogleOAuthService : IGoogleOAuthService
         using var profileDoc = await JsonDocument.ParseAsync(profileStream);
         var root = profileDoc.RootElement;
 
+        // Google reports whether it has verified the address; privileged roles are only granted when it did.
+        var emailVerified = root.TryGetProperty("email_verified", out var verified)
+            && (verified.ValueKind == JsonValueKind.True
+                || (verified.ValueKind == JsonValueKind.String && bool.TryParse(verified.GetString(), out var parsed) && parsed));
+
         return new GoogleUserInfo(
             GoogleId: root.GetProperty("sub").GetString()!,
             Email: root.GetProperty("email").GetString()!,
             DisplayName: root.TryGetProperty("name", out var name) ? name.GetString()! : root.GetProperty("email").GetString()!,
-            AvatarUrl: root.TryGetProperty("picture", out var picture) ? picture.GetString() : null);
+            AvatarUrl: root.TryGetProperty("picture", out var picture) ? picture.GetString() : null,
+            EmailVerified: emailVerified);
     }
 }

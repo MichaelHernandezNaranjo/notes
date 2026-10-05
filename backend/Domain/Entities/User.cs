@@ -9,6 +9,12 @@ public sealed class User
     public string? AvatarUrl { get; init; }
     public string PreferredLanguage { get; init; } = "es";
     public bool IsActive { get; init; }
+    public bool IsSuperAdmin { get; init; }
+    public DateTime? BlockedAt { get; init; }
+    public string? BlockReason { get; init; }
+    public DateTime? LastLoginAt { get; init; }
+    public DateTime? LastSeenAt { get; init; }
+    public long? StorageQuotaBytes { get; init; }
     public string? TermsAcceptedVersion { get; init; }
     public DateTime? TermsAcceptedAt { get; init; }
     public DateTime CreatedAt { get; init; }

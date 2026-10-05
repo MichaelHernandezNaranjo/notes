@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.IdentityModel.Tokens;
 using NotesApp.Api.Domain.Interfaces;
+using NotesApp.Api.Controllers;
 using NotesApp.Api.Hubs;
 using NotesApp.Api.Infrastructure.Auth;
 using NotesApp.Api.Infrastructure.Data;
@@ -49,6 +50,7 @@ builder.Services.AddScoped<INodeRepository, NodeRepository>();
 builder.Services.AddScoped<IPermissionRepository, PermissionRepository>();
 builder.Services.AddScoped<IAuditRepository, AuditRepository>();
 builder.Services.AddScoped<IFileRepository, FileRepository>();
+builder.Services.AddScoped<IAdminRepository, AdminRepository>();
 
 // ---------- Auth infrastructure ----------
 builder.Services.AddHttpClient();
@@ -61,9 +63,12 @@ builder.Services.AddScoped<INodeService, NodeService>();
 builder.Services.AddScoped<IGroupService, GroupService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IFileService, FileService>();
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<IUserStatusService, UserStatusService>();
 
 // ---------- Realtime ----------
 builder.Services.AddSingleton<IYjsDocumentStore, YjsDocumentStore>();
+builder.Services.AddSingleton<IPresenceTracker, PresenceTracker>();
 builder.Services.AddSignalR();
 
 // ---------- JWT Authentication (HTTP + SignalR WebSocket) ----------
@@ -131,6 +136,23 @@ app.Use(async (context, next) =>
         context.Response.StatusCode = StatusCodes.Status400BadRequest;
         await context.Response.WriteAsJsonAsync(new { error = ex.Message, code = "terms_not_accepted", requiredVersion = ex.RequiredVersion });
     }
+    catch (AccountBlockedException ex) when (!context.Response.HasStarted)
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message, code = "account_blocked" });
+    }
+    catch (Microsoft.Data.SqlClient.SqlException ex) when (!context.Response.HasStarted && ex.Number is 50003 or 50004 or 50005)
+    {
+        // 50003 = storage quota exceeded, 50004 = last super admin, 50005 = invalid quota.
+        var (status, code) = ex.Number switch
+        {
+            50003 => (StatusCodes.Status413PayloadTooLarge, "quota_exceeded"),
+            50004 => (StatusCodes.Status409Conflict, "last_admin"),
+            _ => (StatusCodes.Status400BadRequest, "invalid_quota")
+        };
+        context.Response.StatusCode = status;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message, code });
+    }
     catch (Microsoft.Data.SqlClient.SqlException ex) when (!context.Response.HasStarted && (ex.Number == 50001 || ex.Number == 50002))
     {
         // 50001 = duplicate sibling name, 50002 = empty name (raised by the Node stored procedures).
@@ -150,9 +172,29 @@ app.UseRequestLocalization();
 // Cloudflare Tunnel, which already terminates TLS (a redirect would drop Authorization).
 app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();
+
+// A valid token is not enough: the account must still be active. Checked against the database (30 s cache) so a block
+// takes effect almost immediately, including for already-issued access tokens and for SignalR connections.
+app.Use(async (context, next) =>
+{
+    var isAuthApi = context.Request.Path.StartsWithSegments("/api/auth");
+    if (!isAuthApi && context.User.Identity?.IsAuthenticated == true)
+    {
+        var status = await context.RequestServices.GetRequiredService<IUserStatusService>().GetAsync(context.User.GetUserId());
+        if (!status.Exists || !status.IsActive)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsJsonAsync(new { error = "This account has been blocked.", code = "account_blocked" });
+            return;
+        }
+    }
+    await next();
+});
+
 app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<CollaborativeNoteHub>("/hubs/collaborative-note");
+app.MapHub<PresenceHub>("/hubs/presence");
 
 app.Run();

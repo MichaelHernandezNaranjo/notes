@@ -4,7 +4,7 @@ public sealed record LoginRequest(string Code, string RedirectUri, string? Terms
 public sealed record RefreshRequest(string RefreshToken);
 public sealed record AuthResponse(string AccessToken, string RefreshToken, UserDto User);
 
-public sealed record UserDto(Guid Id, string Email, string DisplayName, string? AvatarUrl, string PreferredLanguage);
+public sealed record UserDto(Guid Id, string Email, string DisplayName, string? AvatarUrl, string PreferredLanguage, bool IsSuperAdmin = false);
 
 public sealed record CreateNodeRequest(Guid? ParentId, string Type, string Name);
 public sealed record RenameNodeRequest(string Name);

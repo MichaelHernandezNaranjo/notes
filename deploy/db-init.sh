@@ -111,4 +111,11 @@ if [ "${dups:-0}" != "0" ]; then
   sa -d NotesAppDb -W -Q "SELECT TOP 20 ISNULL(CONVERT(VARCHAR(36), ParentId), '(root)') AS ParentId, Name, COUNT(*) AS Copies FROM dbo.Nodes WHERE IsDeleted = 0 GROUP BY ISNULL(CONVERT(VARCHAR(36), ParentId), '(root)'), ParentId, Name HAVING COUNT(*) > 1;"
 fi
 
+# ---------- Read-only report: users already above their storage limit (they become read-only until they free space) ----------
+over=$(val "SELECT COUNT(*) FROM dbo.Users u WHERE u.IsSuperAdmin = 0 AND dbo.fn_UsedBytes(u.Id) > ISNULL(u.StorageQuotaBytes, dbo.fn_DefaultQuotaBytes())")
+if [ "${over:-0}" != "0" ]; then
+  echo "[db-init] WARNING: $over user(s) use more space than their limit (read-only until they free space or you raise the limit in /admin):"
+  sa -d NotesAppDb -W -Q "SELECT TOP 20 u.Email, dbo.fn_UsedBytes(u.Id) / 1048576 AS UsedMB, ISNULL(u.StorageQuotaBytes, dbo.fn_DefaultQuotaBytes()) / 1048576 AS LimitMB FROM dbo.Users u WHERE u.IsSuperAdmin = 0 AND dbo.fn_UsedBytes(u.Id) > ISNULL(u.StorageQuotaBytes, dbo.fn_DefaultQuotaBytes()) ORDER BY dbo.fn_UsedBytes(u.Id) DESC;"
+fi
+
 echo "[db-init] done"

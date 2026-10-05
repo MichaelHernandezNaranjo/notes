@@ -6,10 +6,18 @@ import { LegalPage } from './pages/LegalPage';
 import { GoogleCallbackPage } from './pages/GoogleCallbackPage';
 import { NotePage } from './pages/NotePage';
 import { SettingsPage } from './features/settings/SettingsPage';
+import { AdminPage } from './features/admin/AdminPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+/** Only super admins reach the panel (the API enforces it as well; this just avoids a dead screen). */
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (!user?.isSuperAdmin) return <Navigate to="/notes" replace />;
   return <>{children}</>;
 }
 
@@ -32,6 +40,7 @@ export default function App() {
         <Route path="/notes" element={<NotePage />} />
         <Route path="/notes/:nodeId" element={<NotePage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

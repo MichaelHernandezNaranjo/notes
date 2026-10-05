@@ -5,7 +5,7 @@ import type { Language } from '../i18n/translations';
  * (appsettings.json): the server rejects logins that do not carry the current version.
  * Bump it (in both places) whenever the texts change materially so users accept again.
  */
-export const TERMS_VERSION = '2026-10-03';
+export const TERMS_VERSION = '2026-10-05';
 export const CONTACT_EMAIL = 'info@d4nthi.com';
 
 export type LegalSection = { heading: string; paragraphs: string[] };
@@ -15,7 +15,7 @@ export type LegalKind = 'terms' | 'privacy';
 const es: Record<LegalKind, LegalDocument> = {
   terms: {
     title: 'Términos y Condiciones de Uso',
-    updated: 'Última actualización: 3 de octubre de 2026',
+    updated: 'Última actualización: 5 de octubre de 2026',
     intro:
       'Estos Términos y Condiciones regulan el acceso y uso de Notes (la «Aplicación»), un servicio de notas y archivos colaborativos en tiempo real ofrecido por d4nthi («d4nthi», «nosotros»). Al iniciar sesión declaras que los has leído y que los aceptas.',
     sections: [
@@ -51,11 +51,14 @@ const es: Record<LegalKind, LegalDocument> = {
         paragraphs: [
           'Te comprometes a no utilizar la Aplicación para: (a) almacenar o difundir contenido ilegal, difamatorio, que infrinja derechos de terceros o de propiedad intelectual; (b) intentar acceder sin autorización a datos o cuentas ajenas; (c) interferir con el funcionamiento o la seguridad del servicio, incluida la carga de código malicioso; (d) realizar un uso automatizado que degrade el servicio.',
           'Podemos suspender o cancelar el acceso, y retirar contenido, cuando haya incumplimiento de estos Términos o requerimiento de autoridad competente.',
+          'La suspensión (bloqueo de la cuenta) la decide un administrador de d4nthi: cierra tus sesiones y te impide iniciar sesión, pero no elimina tus notas. Si crees que se trata de un error, escríbenos a nuestro correo de contacto.',
         ],
       },
       {
-        heading: '6. Papelera, eliminación y copias de seguridad',
+        heading: '6. Almacenamiento, papelera y copias de seguridad',
         paragraphs: [
+          'Cada cuenta dispone de un límite de almacenamiento (por defecto 250 MB), que cuenta el texto de tus notas y sus imágenes, incluido lo que está en la papelera. Puedes consultar tu uso en Configuración. Los administradores pueden aumentar o reducir el límite de una cuenta.',
+          'Al alcanzar el límite podrás leer y eliminar contenido, pero no añadir contenido nuevo hasta liberar espacio o recibir una ampliación. Reducir un límite por debajo del espacio en uso no elimina contenido. El espacio de una nota se carga a su propietario, por lo que quienes colaboran en ella pueden verse limitados si su propietario alcanza el suyo.',
           'Los elementos eliminados pasan a la papelera, donde permanecen de solo lectura hasta que los restaures o los elimines definitivamente. La eliminación definitiva no puede deshacerse desde la Aplicación.',
           'Realizamos copias de seguridad periódicas con fines de continuidad del servicio; los datos eliminados pueden permanecer en ellas por un periodo limitado antes de ser sobrescritos.',
         ],
@@ -98,7 +101,7 @@ const es: Record<LegalKind, LegalDocument> = {
   },
   privacy: {
     title: 'Política de Privacidad y Tratamiento de Datos Personales',
-    updated: 'Última actualización: 3 de octubre de 2026',
+    updated: 'Última actualización: 5 de octubre de 2026',
     intro:
       'En cumplimiento de la Ley 1581 de 2012, el Decreto 1377 de 2013 (compilado en el Decreto 1074 de 2015) y demás normas colombianas sobre protección de datos personales, d4nthi informa cómo trata la información de los usuarios de Notes.',
     sections: [
@@ -111,14 +114,15 @@ const es: Record<LegalKind, LegalDocument> = {
         paragraphs: [
           'Datos de tu cuenta de Google que autorizas al iniciar sesión: identificador de Google, correo electrónico, nombre y foto de perfil.',
           'Contenido que generas: notas, carpetas, imágenes, nombres, y la información de permisos con quién las compartes.',
-          'Datos de uso y seguridad: idioma preferido, notas recientes y favoritas, registros de auditoría de acciones sobre elementos (creación, edición, cambios de permiso, eliminación), y la versión y fecha de aceptación de los Términos.',
+          'Datos de uso y seguridad: idioma preferido, notas recientes y favoritas, fechas de alta, último inicio de sesión y última actividad, si tienes la aplicación abierta en este momento (estado «en línea»), el espacio de almacenamiento usado y tu límite, registros de auditoría de acciones sobre elementos (creación, edición, cambios de permiso, eliminación), y la versión y fecha de aceptación de los Términos.',
+          'Estos datos son visibles para los administradores de d4nthi con fines de operación, seguridad y soporte. Los administradores ven metadatos y el espacio usado, no el contenido de tus notas.',
           'No recolectamos datos sensibles de forma intencional. Eres responsable de no incluirlos en tus notas si no es necesario.',
         ],
       },
       {
         heading: '3. Finalidades',
         paragraphs: [
-          'Autenticarte y mantener tu sesión; prestar el servicio de notas y colaboración en tiempo real; permitir compartir contenido; garantizar la seguridad e integridad del servicio y prevenir abusos; cumplir obligaciones legales; y atender tus solicitudes.',
+          'Autenticarte y mantener tu sesión; prestar el servicio de notas y colaboración en tiempo real; permitir compartir contenido; garantizar la seguridad e integridad del servicio y prevenir abusos; gestionar los límites de almacenamiento y la suspensión de cuentas; enviarte avisos operativos sobre el servicio; cumplir obligaciones legales; y atender tus solicitudes.',
           'No vendemos tus datos ni los usamos para publicidad de terceros.',
         ],
       },
@@ -174,7 +178,7 @@ const es: Record<LegalKind, LegalDocument> = {
 const en: Record<LegalKind, LegalDocument> = {
   terms: {
     title: 'Terms and Conditions of Use',
-    updated: 'Last updated: October 3, 2026',
+    updated: 'Last updated: October 5, 2026',
     intro:
       'These Terms and Conditions govern access to and use of Notes (the “Application”), a real-time collaborative notes and files service provided by d4nthi (“d4nthi”, “we”). By signing in you declare that you have read and accept them.',
     sections: [
@@ -210,11 +214,14 @@ const en: Record<LegalKind, LegalDocument> = {
         paragraphs: [
           'You agree not to use the Application to: (a) store or distribute illegal or defamatory content, or content that infringes third-party or intellectual property rights; (b) attempt unauthorized access to other people’s data or accounts; (c) interfere with the operation or security of the service, including uploading malicious code; (d) use automated means that degrade the service.',
           'We may suspend or terminate access and remove content in case of breach of these Terms or a request from a competent authority.',
+          'Suspension (blocking the account) is decided by a d4nthi administrator: it ends your sessions and prevents you from signing in, but does not delete your notes. If you think it is a mistake, write to our contact e-mail.',
         ],
       },
       {
-        heading: '6. Trash, deletion and backups',
+        heading: '6. Storage, trash and backups',
         paragraphs: [
+          'Each account has a storage limit (250 MB by default), which counts the text of your notes and their images, including what is in the trash. You can check your usage in Settings. Administrators can raise or lower an account’s limit.',
+          'When you reach the limit you can read and delete content, but not add new content until you free space or receive an increase. Lowering a limit below the space in use does not delete content. The space of a note is charged to its owner, so collaborators can be limited if the owner reaches theirs.',
           'Deleted items go to the trash, where they stay read-only until you restore them or delete them permanently. Permanent deletion cannot be undone from the Application.',
           'We take periodic backups for service continuity; deleted data may remain in them for a limited period before being overwritten.',
         ],
@@ -257,7 +264,7 @@ const en: Record<LegalKind, LegalDocument> = {
   },
   privacy: {
     title: 'Privacy Policy and Personal Data Processing',
-    updated: 'Last updated: October 3, 2026',
+    updated: 'Last updated: October 5, 2026',
     intro:
       'In compliance with Law 1581 of 2012, Decree 1377 of 2013 (compiled in Decree 1074 of 2015) and other Colombian personal data protection rules, d4nthi explains how it processes the information of Notes users.',
     sections: [
@@ -270,14 +277,15 @@ const en: Record<LegalKind, LegalDocument> = {
         paragraphs: [
           'Google account data you authorize when signing in: Google identifier, email address, name and profile picture.',
           'Content you generate: notes, folders, images, names, and the permission information of who you share them with.',
-          'Usage and security data: preferred language, recent and favorite items, audit logs of actions on items (creation, edits, permission changes, deletion), and the version and date of your acceptance of the Terms.',
+          'Usage and security data: preferred language, recent and favorite items, sign-up date, last sign-in and last activity, whether you have the app open right now (“online” status), the storage space used and your limit, audit logs of actions on items (creation, edits, permission changes, deletion), and the version and date of your acceptance of the Terms.',
+          'This data is visible to d4nthi administrators for operations, security and support purposes. Administrators see metadata and space used, not the content of your notes.',
           'We do not intentionally collect sensitive data. You are responsible for not including it in your notes unless necessary.',
         ],
       },
       {
         heading: '3. Purposes',
         paragraphs: [
-          'To authenticate you and keep your session; to provide the notes and real-time collaboration service; to let you share content; to ensure the security and integrity of the service and prevent abuse; to comply with legal obligations; and to handle your requests.',
+          'To authenticate you and keep your session; to provide the notes and real-time collaboration service; to let you share content; to ensure the security and integrity of the service and prevent abuse; to manage storage limits and account suspension; to send you operational notices about the service; to comply with legal obligations; and to handle your requests.',
           'We do not sell your data or use it for third-party advertising.',
         ],
       },

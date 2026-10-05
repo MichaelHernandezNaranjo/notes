@@ -142,6 +142,10 @@ BEGIN
 
     SELECT @ParentId = ParentId, @BaseName = Name FROM dbo.Nodes WHERE Id = @NodeId;
 
+    -- The copy belongs to @OwnerId and counts against their storage quota.
+    DECLARE @CopyBytes BIGINT = ISNULL((SELECT ContentSizeBytes FROM dbo.Nodes WHERE Id = @NodeId), 0);
+    EXEC dbo.sp_Storage_AssertAllowance @OwnerId, @CopyBytes;
+
     -- First free name: "X (copy)", "X (copy 2)", "X (copy 3)", ...
     SET @NewName = LEFT(@BaseName, 280) + N' (copy)';
     WHILE EXISTS (SELECT 1 FROM dbo.Nodes WITH (UPDLOCK, HOLDLOCK)
@@ -152,8 +156,8 @@ BEGIN
         SET @NewName = LEFT(@BaseName, 270) + N' (copy ' + CAST(@N AS NVARCHAR(10)) + N')';
     END
 
-    INSERT INTO dbo.Nodes (Id, ParentId, OwnerId, Type, Name, ContentJson, ContentYjsState, SortOrder)
-    SELECT @NewId, ParentId, @OwnerId, Type, @NewName, ContentJson, ContentYjsState,
+    INSERT INTO dbo.Nodes (Id, ParentId, OwnerId, Type, Name, ContentJson, ContentYjsState, ContentSizeBytes, SortOrder)
+    SELECT @NewId, ParentId, @OwnerId, Type, @NewName, ContentJson, ContentYjsState, ContentSizeBytes,
            (SELECT ISNULL(MAX(SortOrder), 0) + 1 FROM dbo.Nodes n2
             WHERE ISNULL(n2.ParentId, '00000000-0000-0000-0000-000000000000') = ISNULL(n.ParentId, '00000000-0000-0000-0000-000000000000') AND n2.IsDeleted = 0)
     FROM dbo.Nodes n
@@ -383,6 +387,9 @@ BEGIN
     UPDATE dbo.Nodes
     SET ContentJson = COALESCE(@ContentJson, ContentJson),
         ContentYjsState = COALESCE(@ContentYjsState, ContentYjsState),
+        -- Keep the per-node size current: it feeds each owner's storage usage.
+        ContentSizeBytes = ISNULL(DATALENGTH(COALESCE(@ContentJson, ContentJson)), 0)
+                         + ISNULL(DATALENGTH(COALESCE(@ContentYjsState, ContentYjsState)), 0),
         UpdatedAt = SYSUTCDATETIME()
     WHERE Id = @NodeId;
 END

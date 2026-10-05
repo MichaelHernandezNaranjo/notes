@@ -38,7 +38,8 @@ BEGIN
     MERGE dbo.Users AS target
     USING (SELECT @GoogleId AS GoogleId) AS src
         ON target.GoogleId = src.GoogleId
-    WHEN MATCHED THEN
+    -- Blocked users (IsActive = 0) are matched but never updated: the caller sees IsActive = 0 and refuses the login.
+    WHEN MATCHED AND target.IsActive = 1 THEN
         UPDATE SET Email = @Email,
                    DisplayName = @DisplayName,
                    AvatarUrl = @AvatarUrl,
@@ -46,11 +47,14 @@ BEGIN
                    TermsAcceptedAt = CASE WHEN @TermsVersion IS NOT NULL AND ISNULL(target.TermsAcceptedVersion, N'') <> @TermsVersion
                                           THEN SYSUTCDATETIME() ELSE target.TermsAcceptedAt END,
                    TermsAcceptedVersion = ISNULL(@TermsVersion, target.TermsAcceptedVersion),
+                   LastLoginAt = SYSUTCDATETIME(),
+                   LastSeenAt = SYSUTCDATETIME(),
                    UpdatedAt = SYSUTCDATETIME()
     WHEN NOT MATCHED THEN
-        INSERT (GoogleId, Email, DisplayName, AvatarUrl, TermsAcceptedVersion, TermsAcceptedAt)
+        INSERT (GoogleId, Email, DisplayName, AvatarUrl, TermsAcceptedVersion, TermsAcceptedAt, LastLoginAt, LastSeenAt)
         VALUES (@GoogleId, @Email, @DisplayName, @AvatarUrl, @TermsVersion,
-                CASE WHEN @TermsVersion IS NULL THEN NULL ELSE SYSUTCDATETIME() END);
+                CASE WHEN @TermsVersion IS NULL THEN NULL ELSE SYSUTCDATETIME() END,
+                SYSUTCDATETIME(), SYSUTCDATETIME());
 
     SELECT TOP (1) * FROM dbo.Users WHERE GoogleId = @GoogleId;
 END
@@ -87,10 +91,17 @@ CREATE OR ALTER PROCEDURE dbo.sp_RefreshToken_Validate
 AS
 BEGIN
     SET NOCOUNT ON;
+    -- Renewing a session counts as activity (throttled to once every 2 minutes).
+    UPDATE u SET LastSeenAt = SYSUTCDATETIME()
+    FROM dbo.Users u INNER JOIN dbo.RefreshTokens rt ON rt.UserId = u.Id
+    WHERE rt.TokenHash = @TokenHash AND rt.RevokedAt IS NULL AND u.IsActive = 1
+      AND (u.LastSeenAt IS NULL OR u.LastSeenAt < DATEADD(MINUTE, -2, SYSUTCDATETIME()));
+
     SELECT TOP (1) rt.*, u.Email, u.DisplayName, u.PreferredLanguage
     FROM dbo.RefreshTokens rt
     INNER JOIN dbo.Users u ON u.Id = rt.UserId
     WHERE rt.TokenHash = @TokenHash
+      AND u.IsActive = 1
       AND rt.RevokedAt IS NULL
       AND rt.ExpiresAt > SYSUTCDATETIME();
 END
