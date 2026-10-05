@@ -4,6 +4,13 @@ La versión que se muestra en «Acerca de» sale de `frontend/package.json` (ún
 Se sube antes de cada push y se añade aquí una entrada. Esquema semver: parche = correcciones y ajustes,
 menor = funcionalidades nuevas, mayor = cambios incompatibles.
 
+## 1.0.2 — 2026-10-03
+
+- Páginas públicas `/terms` y `/privacy` (sin sesión, con selector de idioma), necesarias para la verificación de Google.
+- Login: enlaces reales a Términos y Privacidad (también en el pie) y una frase que explica qué hace Notes, visible en móvil.
+- Política de privacidad: se añade la declaración de la Política de Datos de Usuario de las API de Google.
+- **Versión de los términos `2026-10-03`** (frontend y backend): cada usuario debe aceptarla de nuevo en su próximo inicio de sesión.
+
 ## 1.0.1 — 2026-10-03
 
 - Responsive para móvil y tableta:

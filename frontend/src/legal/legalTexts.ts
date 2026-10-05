@@ -5,7 +5,7 @@ import type { Language } from '../i18n/translations';
  * (appsettings.json): the server rejects logins that do not carry the current version.
  * Bump it (in both places) whenever the texts change materially so users accept again.
  */
-export const TERMS_VERSION = '2026-10-02';
+export const TERMS_VERSION = '2026-10-03';
 export const CONTACT_EMAIL = 'info@d4nthi.com';
 
 export type LegalSection = { heading: string; paragraphs: string[] };
@@ -15,7 +15,7 @@ export type LegalKind = 'terms' | 'privacy';
 const es: Record<LegalKind, LegalDocument> = {
   terms: {
     title: 'Términos y Condiciones de Uso',
-    updated: 'Última actualización: 2 de octubre de 2026',
+    updated: 'Última actualización: 3 de octubre de 2026',
     intro:
       'Estos Términos y Condiciones regulan el acceso y uso de Notes (la «Aplicación»), un servicio de notas y archivos colaborativos en tiempo real ofrecido por d4nthi («d4nthi», «nosotros»). Al iniciar sesión declaras que los has leído y que los aceptas.',
     sections: [
@@ -98,7 +98,7 @@ const es: Record<LegalKind, LegalDocument> = {
   },
   privacy: {
     title: 'Política de Privacidad y Tratamiento de Datos Personales',
-    updated: 'Última actualización: 2 de octubre de 2026',
+    updated: 'Última actualización: 3 de octubre de 2026',
     intro:
       'En cumplimiento de la Ley 1581 de 2012, el Decreto 1377 de 2013 (compilado en el Decreto 1074 de 2015) y demás normas colombianas sobre protección de datos personales, d4nthi informa cómo trata la información de los usuarios de Notes.',
     sections: [
@@ -133,6 +133,7 @@ const es: Record<LegalKind, LegalDocument> = {
         paragraphs: [
           'Utilizamos Google (autenticación mediante OAuth) y Cloudflare (conectividad y protección del tráfico). Estos proveedores pueden tratar datos en otros países, con las salvaguardas que ofrecen sus propias políticas. Solo se comparte lo necesario para prestar el servicio.',
           'El contenido que compartes es visible para las personas o grupos que designes. Podemos divulgar información cuando una autoridad competente lo requiera conforme a la ley.',
+          'El uso y la transferencia a cualquier otra aplicación de la información recibida de las API de Google se ajustará a la Política de Datos de Usuario de los Servicios de API de Google, incluidos los requisitos de uso limitado.',
         ],
       },
       {
@@ -173,7 +174,7 @@ const es: Record<LegalKind, LegalDocument> = {
 const en: Record<LegalKind, LegalDocument> = {
   terms: {
     title: 'Terms and Conditions of Use',
-    updated: 'Last updated: October 2, 2026',
+    updated: 'Last updated: October 3, 2026',
     intro:
       'These Terms and Conditions govern access to and use of Notes (the “Application”), a real-time collaborative notes and files service provided by d4nthi (“d4nthi”, “we”). By signing in you declare that you have read and accept them.',
     sections: [
@@ -256,7 +257,7 @@ const en: Record<LegalKind, LegalDocument> = {
   },
   privacy: {
     title: 'Privacy Policy and Personal Data Processing',
-    updated: 'Last updated: October 2, 2026',
+    updated: 'Last updated: October 3, 2026',
     intro:
       'In compliance with Law 1581 of 2012, Decree 1377 of 2013 (compiled in Decree 1074 of 2015) and other Colombian personal data protection rules, d4nthi explains how it processes the information of Notes users.',
     sections: [
@@ -291,6 +292,7 @@ const en: Record<LegalKind, LegalDocument> = {
         paragraphs: [
           'We use Google (OAuth authentication) and Cloudflare (connectivity and traffic protection). These providers may process data in other countries under the safeguards of their own policies. Only what is necessary to provide the service is shared.',
           'Content you share is visible to the people or groups you designate. We may disclose information when a competent authority requires it under the law.',
+          'The use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements.',
         ],
       },
       {

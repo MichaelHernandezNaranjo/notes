@@ -27,6 +27,13 @@ export function LoginPage() {
   const [showError, setShowError] = useState(false);
   const [legal, setLegal] = useState<LegalKind | null>(null);
 
+  /** Plain click keeps the user on the login (modal); ctrl/middle click or a crawler follows the real /terms|/privacy URL. */
+  const openLegal = (e: React.MouseEvent, kind: LegalKind) => {
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    setLegal(kind);
+  };
+
   return (
     <div className="grid min-h-full lg:grid-cols-2">
       {/* Brand panel (large screens only) */}
@@ -68,6 +75,7 @@ export function LoginPage() {
           <LogoMark className="mb-6 h-14 w-14 lg:hidden" />
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">{t('app.name')}</h1>
           <p className="mt-1 text-sm text-neutral-600">{t('login.subtitle')}</p>
+          <p className="mt-3 text-sm leading-relaxed text-neutral-700">{t('login.about')}</p>
 
           <div className="mt-8 rounded-2xl border border-border-subtle bg-bg-elevated p-6 shadow-sm">
             <label className="flex cursor-pointer items-start gap-3 text-sm leading-relaxed text-neutral-700">
@@ -83,13 +91,13 @@ export function LoginPage() {
               />
               <span>
                 {t('login.accept')}{' '}
-                <button type="button" onClick={() => setLegal('terms')} className="text-accent-blue underline">
+                <a href="/terms" onClick={(e) => openLegal(e, 'terms')} className="text-accent-blue underline">
                   {t('legal.terms')}
-                </button>{' '}
+                </a>{' '}
                 {t('login.and')}{' '}
-                <button type="button" onClick={() => setLegal('privacy')} className="text-accent-blue underline">
+                <a href="/privacy" onClick={(e) => openLegal(e, 'privacy')} className="text-accent-blue underline">
                   {t('legal.privacy')}
-                </button>
+                </a>
                 .
               </span>
             </label>
@@ -109,6 +117,15 @@ export function LoginPage() {
           </div>
 
           <p className="mt-4 text-center text-xs text-neutral-500">{t('login.secure')}</p>
+          <p className="mt-3 text-center text-xs text-neutral-500">
+            <a href="/terms" className="underline hover:text-neutral-700">
+              {t('legal.terms')}
+            </a>
+            {' · '}
+            <a href="/privacy" className="underline hover:text-neutral-700">
+              {t('legal.privacy')}
+            </a>
+          </p>
         </div>
       </main>
 

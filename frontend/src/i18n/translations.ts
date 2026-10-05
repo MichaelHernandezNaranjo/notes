@@ -34,9 +34,11 @@ export const translations = {
     legal: {
       terms: 'Términos y Condiciones',
       privacy: 'Política de Privacidad',
+      backToApp: 'Ir a Notes',
     },
     login: {
       subtitle: 'Inicia sesión para acceder a tu espacio de trabajo.',
+      about: 'Notes es una aplicación para escribir, organizar y compartir notas con tu equipo, y editarlas juntos en tiempo real.',
       accept: 'He leído y acepto los',
       and: 'y la',
       required: 'Debes aceptar los términos para continuar.',
@@ -162,9 +164,11 @@ export const translations = {
     legal: {
       terms: 'Terms and Conditions',
       privacy: 'Privacy Policy',
+      backToApp: 'Go to Notes',
     },
     login: {
       subtitle: 'Sign in to access your workspace.',
+      about: 'Notes is an app to write, organize and share notes with your team, and edit them together in real time.',
       accept: 'I have read and accept the',
       and: 'and the',
       required: 'You must accept the terms to continue.',

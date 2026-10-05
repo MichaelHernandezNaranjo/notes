@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from './app/AppLayout';
 import { useAuth } from './features/auth/AuthContext';
 import { LoginPage } from './pages/LoginPage';
+import { LegalPage } from './pages/LegalPage';
 import { GoogleCallbackPage } from './pages/GoogleCallbackPage';
 import { NotePage } from './pages/NotePage';
 import { SettingsPage } from './features/settings/SettingsPage';
@@ -16,6 +17,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/terms" element={<LegalPage kind="terms" />} />
+      <Route path="/privacy" element={<LegalPage kind="privacy" />} />
       <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
 
       <Route
