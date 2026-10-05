@@ -78,7 +78,7 @@ export function TreeNode(props: TreeNodeProps) {
           if (!isEditing) onSelect(e, node);
         }}
         style={{ paddingLeft: 12 + depth * 16 }}
-        className={`flex cursor-pointer select-none items-center gap-1.5 py-1 pr-2 ${
+        className={`flex cursor-pointer select-none items-center gap-1.5 py-1 pr-2 pointer-coarse:min-h-11 ${
           isSelected
             ? 'bg-accent-blue/15 text-neutral-900'
             : isActive
@@ -107,6 +107,22 @@ export function TreeNode(props: TreeNodeProps) {
           </span>
         )}
         {node.isFavorite && !isEditing && <span className="ml-auto text-accent-emerald">★</span>}
+        {/* Touch screens have no right-click: expose the same menu through a visible "more" button. */}
+        {!isEditing && (
+          <button
+            type="button"
+            aria-label={`${node.name}: menu`}
+            aria-haspopup="menu"
+            onClick={(e) => {
+              e.stopPropagation();
+              const rect = e.currentTarget.getBoundingClientRect();
+              onContextMenu({ ...e, clientX: rect.left, clientY: rect.bottom, preventDefault: () => undefined, stopPropagation: () => undefined } as unknown as React.MouseEvent, node);
+            }}
+            className={`hidden h-9 w-9 shrink-0 items-center justify-center rounded-md text-lg leading-none text-neutral-600 hover:bg-black/10 pointer-coarse:flex ${node.isFavorite ? '' : 'ml-auto'}`}
+          >
+            ⋯
+          </button>
+        )}
       </div>
 
       {isFolder && isExpanded && (

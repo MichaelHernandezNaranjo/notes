@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Variant for touch screens (no hover, coarse pointer): `pointer-coarse:*` */
+@custom-variant pointer-coarse (@media (pointer: coarse));
+@custom-variant pointer-fine (@media (pointer: fine));
+
 @theme {
   --color-bg-base: #ffffff;
   --color-bg-elevated: #f6f8fa;
@@ -28,6 +32,24 @@ body {
   color: #1f2328;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Touch devices: iOS zooms into any text field below 16px, so keep inputs at 16px. */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Comfortable touch targets for compact controls (opt-in via the `touch-target` class). */
+@media (pointer: coarse) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
 }
 
 ::-webkit-scrollbar {

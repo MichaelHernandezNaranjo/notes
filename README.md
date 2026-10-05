@@ -89,3 +89,13 @@ Configurar en Google Cloud Console un cliente OAuth 2.0 con el redirect URI:
   (SignalR) en lugar de WebRTC; persistencia a SQL Server con debounce de 3s.
 - **Auth:** Authorization Code Flow — el `client_secret` de Google nunca sale del backend.
 - **Exportación:** `html-to-image` + `jsPDF` (únicas librerías de terceros añadidas fuera del stack pactado).
+
+## Versionado y publicación
+
+Antes de cada push a `main`:
+
+1. Sube la versión en `frontend/package.json` (se muestra en «Acerca de»).
+2. Añade su entrada en `CHANGELOG.md`.
+3. Si cambian los textos legales, sube también `TERMS_VERSION` (frontend) y `Terms:Version` (backend): obliga a aceptar de nuevo.
+4. Las migraciones de base de datos van en `backend/Database/Migrations` y nunca se editan una vez desplegadas.
+

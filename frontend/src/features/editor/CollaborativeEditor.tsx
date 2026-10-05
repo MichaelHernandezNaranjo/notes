@@ -24,6 +24,8 @@ export type CollaborativeEditorProps = {
   nodeId: string;
   noteName: string;
   onShare: () => void;
+  /** Mobile: go back to the explorer (shown as an arrow in the toolbar). */
+  onBack?: () => void;
   /** Note is in the trash: read-only, with a banner and a Restore action. */
   trashed?: boolean;
   /** Location of the trashed note (ancestor names). */
@@ -37,7 +39,7 @@ export type CollaborativeEditorProps = {
  * concurrent edits, so multiple users editing the same note see changes
  * merge instantly and without conflicts.
  */
-export function CollaborativeEditor({ nodeId, noteName, onShare, trashed = false, trashPath, onRestore }: CollaborativeEditorProps) {
+export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed = false, trashPath, onRestore }: CollaborativeEditorProps) {
   const { user } = useAuth();
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -167,18 +169,19 @@ export function CollaborativeEditor({ nodeId, noteName, onShare, trashed = false
         saveState={saveState}
         presence={presence}
         onShare={onShare}
+        onBack={onBack}
         onExportPdf={() => containerRef.current && exportNoteAsPdf(containerRef.current, noteName || 'note')}
         onExportPng={() => containerRef.current && exportNoteAsImage(containerRef.current, noteName || 'note', 'png')}
         onExportJpg={() => containerRef.current && exportNoteAsImage(containerRef.current, noteName || 'note', 'jpeg')}
       />
 
       <div className="relative min-h-0 flex-1">
-        <div ref={containerRef} className="h-full overflow-y-auto bg-bg-base px-6 py-4">
+        <div ref={containerRef} className="h-full overflow-y-auto bg-bg-base px-3 py-4 sm:px-6">
           <BlockNoteView editor={editor} theme="light" editable={!trashed} />
         </div>
 
         {loadState !== 'ready' && (
-          <div className="absolute inset-0 z-10 overflow-hidden bg-bg-base px-6 py-4" role="status" aria-live="polite">
+          <div className="absolute inset-0 z-10 overflow-hidden bg-bg-base px-3 py-4 sm:px-6" role="status" aria-live="polite">
             {loadState === 'error' ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-neutral-700">
                 <p>{t('editor.loadError')}</p>

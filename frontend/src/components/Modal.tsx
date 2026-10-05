@@ -67,7 +67,7 @@ export function Modal({ title, onClose, children, footer, size = 'md' }: ModalPr
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-3 backdrop-blur-[2px] sm:p-4"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -78,7 +78,7 @@ export function Modal({ title, onClose, children, footer, size = 'md' }: ModalPr
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-xl border border-border-subtle bg-bg-base shadow-2xl outline-none ${
+        className={`flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-xl border border-border-subtle bg-bg-base shadow-2xl outline-none ${
           size === 'lg' ? 'max-w-3xl' : 'max-w-xl'
         }`}
       >
@@ -91,7 +91,7 @@ export function Modal({ title, onClose, children, footer, size = 'md' }: ModalPr
             onClick={onClose}
             aria-label={t('common.close')}
             title={t('common.close')}
-            className="rounded-md p-1.5 text-neutral-500 hover:bg-black/5 hover:text-neutral-900 focus-visible:outline-2 focus-visible:outline-accent-blue"
+            className="rounded-md p-1.5 pointer-coarse:p-3 text-neutral-500 hover:bg-black/5 hover:text-neutral-900 focus-visible:outline-2 focus-visible:outline-accent-blue"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <path d="M18 6L6 18M6 6l12 12" />

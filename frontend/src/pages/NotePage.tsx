@@ -47,7 +47,12 @@ export function NotePage() {
 
   return (
     <div className="flex h-full min-h-0">
-      <aside className="h-full w-72 shrink-0 border-r border-border-subtle">
+      {/* Mobile: one screen at a time. The explorer is hidden (not unmounted) while a note is open so its cache and scroll survive. */}
+      <aside
+        className={`h-full w-full shrink-0 border-r border-border-subtle md:block md:w-64 lg:w-72 ${
+          nodeId ? 'hidden' : 'block'
+        }`}
+      >
         <TreeExplorer
           activeNodeId={nodeId ?? null}
           onOpenNote={(id) => navigate(`/notes/${id}`)}
@@ -55,13 +60,14 @@ export function NotePage() {
           refreshToken={treeVersion}
         />
       </aside>
-      <main className="h-full min-h-0 min-w-0 flex-1">
+      <main className={`h-full min-h-0 min-w-0 flex-1 md:block ${nodeId ? 'block' : 'hidden'}`}>
         {nodeId ? (
           <CollaborativeEditor
             key={nodeId}
             nodeId={nodeId}
             noteName={noteName}
             onShare={() => setShareOpen(true)}
+            onBack={() => navigate('/notes')}
             trashed={trashed}
             trashPath={trashPath}
             onRestore={restore}

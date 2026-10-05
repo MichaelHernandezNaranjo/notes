@@ -134,7 +134,7 @@ export function ExplorerSearch({ query, onQueryChange, onSelect }: ExplorerSearc
               else inputRef.current?.blur();
             }
           }}
-          className="w-full rounded-md border border-border-subtle bg-bg-base py-1.5 pl-8 pr-16 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-500 focus:border-accent-blue focus:ring-2 focus:ring-accent-blue/20"
+          className="w-full rounded-md border border-border-subtle bg-bg-base py-1.5 pl-8 pr-9 pointer-fine:pr-16 pointer-coarse:py-2.5 text-sm text-neutral-900 outline-none transition placeholder:text-neutral-500 focus:border-accent-blue focus:ring-2 focus:ring-accent-blue/20"
         />
         <div className="absolute right-5 top-1/2 flex -translate-y-1/2 items-center gap-1.5">
           {status === 'loading' && (
@@ -153,20 +153,20 @@ export function ExplorerSearch({ query, onQueryChange, onSelect }: ExplorerSearc
                 onQueryChange('');
                 inputRef.current?.focus();
               }}
-              className="rounded p-0.5 text-neutral-500 hover:bg-black/10 hover:text-neutral-800"
+              className="rounded p-0.5 pointer-coarse:p-2 text-neutral-500 hover:bg-black/10 hover:text-neutral-800"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                 <path d="M18 6L6 18M6 6l12 12" />
               </svg>
             </button>
           ) : (
-            <kbd className="rounded border border-border-subtle bg-bg-base px-1 text-[10px] text-neutral-500">Ctrl K</kbd>
+            <kbd className="hidden rounded pointer-fine:inline-block border border-border-subtle bg-bg-base px-1 text-[10px] text-neutral-500">Ctrl K</kbd>
           )}
         </div>
       </div>
 
       {showPanel && (
-        <ul id={listId} role="listbox" aria-label={t('search.results')} className="max-h-[60vh] overflow-y-auto pb-1">
+        <ul id={listId} role="listbox" aria-label={t('search.results')} className="max-h-[60dvh] overflow-y-auto pb-1">
           {status === 'error' && (
             <li className="flex items-center justify-between gap-2 px-4 py-2 text-xs text-red-700" role="alert">
               <span>{t('search.error')}</span>
@@ -187,7 +187,7 @@ export function ExplorerSearch({ query, onQueryChange, onSelect }: ExplorerSearc
               onMouseEnter={() => setActive(i)}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => onSelect(r)}
-              className={`flex cursor-pointer items-start gap-2 px-4 py-1.5 ${i === active ? 'bg-accent-blue/10' : 'hover:bg-black/5'}`}
+              className={`flex cursor-pointer items-start gap-2 px-4 py-1.5 pointer-coarse:min-h-12 pointer-coarse:py-2 ${i === active ? 'bg-accent-blue/10' : 'hover:bg-black/5'}`}
             >
               <span className="mt-0.5" aria-hidden="true">
                 {r.type === 'Folder' ? '📁' : '📝'}

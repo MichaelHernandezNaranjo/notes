@@ -8,6 +8,7 @@ export type EditorToolbarProps = {
   saveState: 'saved' | 'saving';
   presence: PresenceUser[];
   onShare: () => void;
+  onBack?: () => void;
   shareDisabled?: boolean;
   onExportPdf: () => void;
   onExportPng: () => void;
@@ -61,6 +62,7 @@ export function EditorToolbar({
   saveState,
   presence,
   onShare,
+  onBack,
   shareDisabled = false,
   onExportPdf,
   onExportPng,
@@ -94,8 +96,21 @@ export function EditorToolbar({
   const saving = saveState === 'saving';
 
   return (
-    <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border-subtle bg-bg-elevated px-4">
-      <div className="flex min-w-0 items-center gap-3">
+    <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-bg-elevated px-2 sm:gap-3 sm:px-4 md:px-4">
+      <div className="flex min-w-0 items-center gap-1 sm:gap-3">
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label={t('common.back')}
+            title={t('common.back')}
+            className={`touch-target -ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-neutral-700 hover:bg-black/5 md:hidden ${focusRing}`}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+        )}
         <h2 className="truncate text-base font-medium text-neutral-900">{title}</h2>
         <span
           className="flex shrink-0 items-center gap-1.5 text-xs text-neutral-600"
@@ -109,8 +124,10 @@ export function EditorToolbar({
         </span>
       </div>
 
-      <div className="flex shrink-0 items-center gap-3">
-        <PresenceAvatars users={presence} />
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        <div className="hidden sm:block">
+          <PresenceAvatars users={presence} />
+        </div>
 
         <div ref={menuRef} className="relative">
           <button

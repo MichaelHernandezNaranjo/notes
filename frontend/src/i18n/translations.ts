@@ -68,6 +68,8 @@ export const translations = {
       rename: 'Renombrar',
       duplicate: 'Duplicar',
       move: 'Mover',
+      moveTo: 'Mover a…',
+      moveHere: 'Mover aquí',
       delete: 'Eliminar',
       restore: 'Restaurar',
       deletePermanently: 'Eliminar permanentemente',
@@ -124,6 +126,7 @@ export const translations = {
       save: 'Guardar',
       loading: 'Cargando...',
       close: 'Cerrar',
+      back: 'Volver',
     },
   },
   en: {
@@ -193,6 +196,8 @@ export const translations = {
       rename: 'Rename',
       duplicate: 'Duplicate',
       move: 'Move',
+      moveTo: 'Move to…',
+      moveHere: 'Move here',
       delete: 'Delete',
       restore: 'Restore',
       deletePermanently: 'Delete permanently',
@@ -249,6 +254,7 @@ export const translations = {
       save: 'Save',
       loading: 'Loading...',
       close: 'Close',
+      back: 'Back',
     },
   },
 } as const;

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AboutModal } from '../components/AboutModal';
 import { useAuth } from '../features/auth/AuthContext';
 import { ExplorerProvider } from '../features/tree-explorer/ExplorerProvider';
@@ -14,15 +14,21 @@ const navItems = [
 const railItem =
   'flex h-10 w-10 items-center justify-center rounded text-base hover:bg-black/5 focus-visible:outline-2 focus-visible:outline-accent-blue';
 
-/** App shell with an always-collapsed icon rail; labels are exposed as tooltips and aria-labels. */
+/**
+ * App shell. Desktop (md+): always-collapsed icon rail on the left.
+ * Mobile: a bottom tab bar (hidden while a note is open to give the editor the full height).
+ */
 export function AppLayout() {
   const { t } = useI18n();
   const { user } = useAuth();
   const [aboutOpen, setAboutOpen] = useState(false);
+  const { pathname } = useLocation();
+  const inEditor = /^\/notes\/[^/]+/.test(pathname);
 
   return (
-    <div className="flex h-screen w-screen bg-bg-base text-neutral-900">
-      <nav className="flex w-14 shrink-0 flex-col border-r border-border-subtle bg-bg-elevated">
+    <div className="flex h-dvh w-screen flex-col bg-bg-base text-neutral-900 md:flex-row">
+      {/* Desktop rail */}
+      <nav className="hidden w-14 shrink-0 flex-col border-r border-border-subtle bg-bg-elevated md:flex">
         <div
           className="flex items-center justify-center py-4"
           title={t('app.name')}
@@ -62,10 +68,46 @@ export function AppLayout() {
 
       {/* Keyed by user: the cached explorer state survives module changes but never leaks to another account. */}
       <ExplorerProvider key={user?.id ?? 'anonymous'}>
-        <div className="min-w-0 flex-1 overflow-hidden">
+        <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
           <Outlet />
         </div>
       </ExplorerProvider>
+
+      {/* Mobile bottom tab bar */}
+      {!inEditor && (
+        <nav
+          aria-label={t('app.name')}
+          className="flex shrink-0 items-stretch justify-around border-t border-border-subtle bg-bg-elevated pb-[env(safe-area-inset-bottom)] md:hidden"
+        >
+          {navItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${
+                  isActive ? 'text-accent-blue' : 'text-neutral-600'
+                }`
+              }
+            >
+              <span className="text-lg" aria-hidden="true">
+                {item.icon}
+              </span>
+              {t(item.labelKey)}
+            </NavLink>
+          ))}
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            onClick={() => setAboutOpen(true)}
+            className="flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-neutral-600"
+          >
+            <span className="text-lg" aria-hidden="true">
+              ℹ️
+            </span>
+            {t('nav.about')}
+          </button>
+        </nav>
+      )}
 
       {aboutOpen && <AboutModal onClose={() => setAboutOpen(false)} />}
     </div>

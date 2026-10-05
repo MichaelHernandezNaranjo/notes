@@ -5,6 +5,7 @@ import { TreeNode, type DraftNode } from './TreeNode';
 import { InlineNameInput } from './InlineNameInput';
 import { ExplorerSearch } from './ExplorerSearch';
 import { ContextMenu, type ContextMenuState } from './ContextMenu';
+import { MoveDialog } from './MoveDialog';
 import { EXPLORER_STALE_MS, useExplorerStore, type SectionKey } from './ExplorerProvider';
 
 const DRAG_MIME = 'text/node-ids';
@@ -63,6 +64,8 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [draft, setDraft] = useState<DraftNode | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  /** Items waiting for a destination in the "Move to…" dialog (touch-friendly alternative to drag & drop). */
+  const [movingNodes, setMovingNodes] = useState<NodeDto[] | null>(null);
 
   const refreshRoot = useCallback(async () => {
     const children = await nodesApi.getChildren(null);
@@ -370,6 +373,9 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
         case 'rename':
           startRename(node);
           return;
+        case 'move':
+          setMovingNodes(targets);
+          return;
         case 'duplicate':
           await nodesApi.duplicate(node.id);
           break;
@@ -566,7 +572,7 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
           <div key={section.key} className="border-b border-border-subtle">
             <button
               type="button"
-              className="flex w-full items-center gap-2 px-3 py-2 font-medium text-neutral-700 hover:bg-black/5"
+              className="flex w-full items-center gap-2 px-3 py-2 font-medium text-neutral-700 hover:bg-black/5 pointer-coarse:min-h-11"
               onClick={() => setOpenSections((prev) => ({ ...prev, [section.key]: !prev[section.key] }))}
             >
               <span>{openSections[section.key] ? '▾' : '▸'}</span>
@@ -598,7 +604,7 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
                           setContextMenu({ x: e.clientX, y: e.clientY, node, count: 1 });
                         }}
                         style={{ paddingLeft: nested ? 40 : 24 }}
-                        className={`flex w-full items-center gap-2 py-1 pr-3 text-left hover:bg-black/5 ${
+                        className={`flex w-full items-center gap-2 py-1 pr-3 text-left hover:bg-black/5 pointer-coarse:min-h-11 ${
                           activeNodeId === node.id ? 'bg-accent-blue/10 text-accent-blue' : ''
                         }`}
                       >
@@ -631,7 +637,7 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
             <button
               type="button"
               title={t('tree.newNote')}
-              className="rounded px-1.5 hover:bg-black/10"
+              className="rounded px-1.5 hover:bg-black/10 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
               onClick={(e) => {
                 e.stopPropagation();
                 void startCreate(createTargetId, 'Note');
@@ -642,7 +648,7 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
             <button
               type="button"
               title={t('tree.newFolder')}
-              className="rounded px-1.5 hover:bg-black/10"
+              className="rounded px-1.5 hover:bg-black/10 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
               onClick={(e) => {
                 e.stopPropagation();
                 void startCreate(createTargetId, 'Folder');
@@ -681,6 +687,19 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
 
       {contextMenu && (
         <ContextMenu state={contextMenu} onAction={handleAction} onClose={() => setContextMenu(null)} />
+      )}
+      {movingNodes && (
+        <MoveDialog
+          nodes={movingNodes}
+          onClose={() => setMovingNodes(null)}
+          onMove={async (target) => {
+            await handleDrop(
+              movingNodes.map((n) => n.id),
+              target,
+            );
+            setMovingNodes(null);
+          }}
+        />
       )}
     </div>
   );
