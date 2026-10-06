@@ -4,6 +4,12 @@ La versión que se muestra en «Acerca de» sale de `frontend/package.json` (ún
 Se sube antes de cada push y se añade aquí una entrada. Esquema semver: parche = correcciones y ajustes,
 menor = funcionalidades nuevas, mayor = cambios incompatibles.
 
+## 1.3.1 — 2026-10-06
+
+- Al pasar del Explorador a Configuración o Administración y volver ya no se recarga nada: el árbol, la nota abierta, su conexión en tiempo real, el scroll y la selección se conservan (la vista se oculta en lugar de desmontarse). El botón «Explorador» vuelve a la última nota abierta.
+- Configuración: la sección «Almacenamiento» aparecía duplicada.
+- El árbol se revalida en silencio solo si pasaron más de 5 min (antes 30 s), y si no hay cambios no se vuelve a pintar nada.
+
 ## 1.3.0 — 2026-10-06
 
 - **Ordenar con arrastrar y soltar en el árbol:** suelta una nota o carpeta entre dos elementos para colocarla ahí (línea azul), o sobre una carpeta para meterla dentro. Funciona con selección múltiple y entre carpetas. El orden se guarda en el servidor (`sp_Node_Move` renumera los hermanos). «Compartido conmigo» no se reordena.

@@ -11,6 +11,15 @@ import { EXPLORER_STALE_MS, useExplorerStore, type SectionKey } from './Explorer
 
 const DRAG_MIME = 'text/node-ids';
 
+/** Content comparison, so a silent revalidation that found nothing new keeps the same references (no re-render, no flicker). */
+function sameNodes(a: NodeDto[] | undefined, b: NodeDto[]): boolean {
+  if (!a || a.length !== b.length) return false;
+  return a.every((n, i) => {
+    const m = b[i];
+    return n.id === m.id && n.name === m.name && n.parentId === m.parentId && n.sortOrder === m.sortOrder && n.isFavorite === m.isFavorite && n.isDeleted === m.isDeleted && n.accessLevel === m.accessLevel && n.updatedAt === m.updatedAt;
+  });
+}
+
 export type TreeExplorerProps = {
   onOpenNote: (nodeId: string) => void;
   activeNodeId: string | null;
@@ -18,6 +27,8 @@ export type TreeExplorerProps = {
   onRenamed?: (nodeId: string, name: string) => void;
   /** Changing this value forces a full reload of the tree and sections (e.g. after restoring from the editor). */
   refreshToken?: number;
+  /** False while another module (Settings, Admin) is shown: the explorer stays mounted but hidden. */
+  active?: boolean;
 };
 
 /** Trash order: each trashed root first, then its trashed descendants nested below it. */
@@ -36,7 +47,7 @@ function orderTrash(items: NodeDto[]): Array<{ node: NodeDto; nested: boolean }>
 }
 
 /** VS Code style sidebar: fixed sections (Recent/Favorites/Trash) + nested folder tree with multi-selection and Drag & Drop. */
-export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken = 0 }: TreeExplorerProps) {
+export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken = 0, active = true }: TreeExplorerProps) {
   const { t } = useI18n();
   // Data and UI state live in the ExplorerProvider (above the router), so they survive module changes.
   const {
@@ -71,7 +82,7 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
 
   const refreshRoot = useCallback(async () => {
     const children = await nodesApi.getChildren(null);
-    setRootNodes(children);
+    setRootNodes((prev) => (sameNodes(prev, children) ? prev : children));
   }, [setRootNodes]);
 
   const refreshSections = useCallback(async () => {
@@ -81,13 +92,14 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
       nodesApi.getShared(),
       nodesApi.getTrash(),
     ]);
-    setSectionData({ recent, favorites, shared, trash });
+    const next = { recent, favorites, shared, trash };
+    setSectionData((prev) => (Object.keys(next).every((k) => sameNodes(prev[k as SectionKey], next[k as SectionKey])) ? prev : next));
   }, [setSectionData]);
 
   const loadChildren = useCallback(
     async (parentId: string) => {
       const children = await nodesApi.getChildren(parentId);
-      setChildrenByParent((prev) => ({ ...prev, [parentId]: children }));
+      setChildrenByParent((prev) => (sameNodes(prev[parentId], children) ? prev : { ...prev, [parentId]: children }));
     },
     [setChildrenByParent],
   );
@@ -109,10 +121,11 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
 
   // First visit: load. Coming back later: keep showing the cached tree and revalidate silently when stale.
   useEffect(() => {
+    if (!active) return;
     if (loadedAt.current === 0 || Date.now() - loadedAt.current > EXPLORER_STALE_MS) {
       void fullRefresh().catch(() => undefined);
     }
-  }, [fullRefresh, loadedAt]);
+  }, [fullRefresh, loadedAt, active]);
 
   // Restore the scroll position when the explorer is shown again, and remember it when it goes away.
   useEffect(() => {

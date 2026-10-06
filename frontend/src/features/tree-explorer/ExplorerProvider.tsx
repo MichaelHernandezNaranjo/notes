@@ -4,7 +4,7 @@ import type { NodeDto } from '../../services/nodesApi';
 export type SectionKey = 'recent' | 'favorites' | 'shared' | 'trash';
 
 /** After this long, coming back to the explorer silently revalidates the cached data. */
-export const EXPLORER_STALE_MS = 30_000;
+export const EXPLORER_STALE_MS = 5 * 60_000;
 
 export type ExplorerStore = {
   rootNodes: NodeDto[];

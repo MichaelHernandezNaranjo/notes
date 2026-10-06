@@ -1,6 +1,7 @@
 import { BrandLogo } from '../components/BrandLogo';
-import { useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useRef, useState } from 'react';
+import { matchPath, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NotePage } from '../pages/NotePage';
 import { AboutModal } from '../components/AboutModal';
 import { useAuth } from '../features/auth/AuthContext';
 import { AnnouncementBanner } from '../features/presence/AnnouncementBanner';
@@ -29,7 +30,16 @@ export function AppLayout() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const { pathname } = useLocation();
   const inEditor = /^\/notes\/[^/]+/.test(pathname);
-  const navItems = user?.isSuperAdmin ? [...baseItems, adminItem] : baseItems;
+  // The explorer + open note stay mounted (hidden) while Settings/Admin are shown: coming back is instant, nothing reloads.
+  const onNotes = pathname === '/notes' || pathname.startsWith('/notes/');
+  const openNode = useRef<string | null>(null);
+  const everOpened = useRef(false);
+  if (onNotes) {
+    openNode.current = matchPath('/notes/:nodeId', pathname)?.params.nodeId ?? null;
+    everOpened.current = true;
+  }
+  const explorerTo = openNode.current ? `/notes/${openNode.current}` : '/notes';
+  const navItems = (user?.isSuperAdmin ? [...baseItems, adminItem] : baseItems).map((i) => (i.to === '/notes' ? { ...i, to: explorerTo } : i));
 
   return (
     <PresenceProvider key={user?.id ?? 'anonymous'}>
@@ -78,7 +88,12 @@ export function AppLayout() {
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <AnnouncementBanner />
             <div className="min-h-0 flex-1 overflow-hidden">
-              <Outlet />
+              {everOpened.current && (
+                <div className="h-full" hidden={!onNotes}>
+                  <NotePage nodeId={openNode.current} active={onNotes} />
+                </div>
+              )}
+              {!onNotes && <Outlet />}
             </div>
           </div>
         </ExplorerProvider>

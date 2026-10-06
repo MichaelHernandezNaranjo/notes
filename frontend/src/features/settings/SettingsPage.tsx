@@ -28,11 +28,6 @@ export function SettingsPage() {
       </section>
 
       <section className="mb-6 rounded-lg border border-border-subtle bg-bg-elevated p-4 sm:mb-8">
-        <h3 className="mb-3 text-sm font-medium text-neutral-700">{t('storage.title')}</h3>
-        <StorageUsage />
-      </section>
-
-      <section className="mb-6 rounded-lg border border-border-subtle bg-bg-elevated p-4 sm:mb-8">
         <h3 className="mb-3 text-sm font-medium text-neutral-700">{t('settings.language')}</h3>
         <select
           className="touch-target w-full rounded border border-border-subtle bg-bg-base px-2 py-1 text-sm sm:w-auto"

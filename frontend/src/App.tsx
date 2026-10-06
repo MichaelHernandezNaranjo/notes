@@ -6,7 +6,6 @@ import { PublicSharePage } from './features/sharing/PublicSharePage';
 import { LoginPage } from './pages/LoginPage';
 import { LegalPage } from './pages/LegalPage';
 import { GoogleCallbackPage } from './pages/GoogleCallbackPage';
-import { NotePage } from './pages/NotePage';
 import { SettingsPage } from './features/settings/SettingsPage';
 import { AdminPage } from './features/admin/AdminPage';
 
@@ -47,8 +46,8 @@ export default function App() {
         }
       >
         <Route path="/" element={<Navigate to="/notes" replace />} />
-        <Route path="/notes" element={<NotePage />} />
-        <Route path="/notes/:nodeId" element={<NotePage />} />
+        <Route path="/notes" element={null} />
+        <Route path="/notes/:nodeId" element={null} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
       </Route>

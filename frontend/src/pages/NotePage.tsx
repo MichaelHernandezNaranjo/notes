@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { TreeExplorer } from '../features/tree-explorer/TreeExplorer';
 import { CollaborativeEditor } from '../features/editor/CollaborativeEditor';
 import { ShareDialog } from '../features/sharing/ShareDialog';
@@ -7,8 +7,8 @@ import { useI18n } from '../i18n/I18nProvider';
 import { apiErrorStatus } from '../services/apiClient';
 import { nodesApi, type NodeDto } from '../services/nodesApi';
 
-export function NotePage() {
-  const { nodeId } = useParams<{ nodeId: string }>();
+export function NotePage({ nodeId: openId, active }: { nodeId: string | null; active: boolean }) {
+  const nodeId = openId ?? undefined;
   const navigate = useNavigate();
   const { t } = useI18n();
   const [noteName, setNoteName] = useState('');
@@ -90,6 +90,7 @@ export function NotePage() {
           onOpenNote={(id) => navigate(`/notes/${id}`)}
           onRenamed={(id, name) => id === nodeId && setNoteName(name)}
           refreshToken={treeVersion}
+          active={active}
         />
       </aside>
       <main className={`h-full min-h-0 min-w-0 flex-1 md:block ${nodeId ? 'block' : 'hidden'}`}>
