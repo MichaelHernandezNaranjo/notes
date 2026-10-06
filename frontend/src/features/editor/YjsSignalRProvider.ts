@@ -47,6 +47,7 @@ export class YjsSignalRProvider {
   private onPresenceChange: ((users: PresenceUser[]) => void) | null = null;
   private onSyncedChange: (() => void) | null = null;
   private onQuotaChange: (() => void) | null = null;
+  private onAccessChange: ((access: string | null) => void) | null = null;
   private readonly presence = new Map<string, string>();
 
   /** True once `disconnect()` has been requested; guards against completing a stale `connect()`. */
@@ -112,6 +113,11 @@ export class YjsSignalRProvider {
     return this.synced;
   }
 
+  /** Fires when the user's access level changes live: 'Owner' | 'Edit' | 'Read', or null when access was lost. */
+  onAccessChanged(callback: (access: string | null) => void) {
+    this.onAccessChange = callback;
+  }
+
   /** Only invokes a hub method when the connection is actually established; swallows expected races silently. */
   private safeInvoke(method: string, ...args: unknown[]): void {
     if (this.connection?.state !== signalR.HubConnectionState.Connected) return;
@@ -127,6 +133,15 @@ export class YjsSignalRProvider {
       }
       if (message.includes('account_blocked')) {
         endSessionBlocked();
+        return;
+      }
+      // Lost the right to edit (or to see the note) since the last check: the server also pushes AccessChanged.
+      if (message.includes('read_only')) {
+        this.onAccessChange?.('Read');
+        return;
+      }
+      if (message.includes('no_access')) {
+        this.onAccessChange?.(null);
         return;
       }
       console.error(`[YjsSignalRProvider] Failed to invoke ${method}:`, error);
@@ -193,6 +208,18 @@ export class YjsSignalRProvider {
       this.emitPresence();
     });
 
+    // The owner changed this user's permission (or revoked it) while the note is open.
+    connection.on('AccessChanged', (_nodeId: string, access: string | null) => {
+      this.onAccessChange?.(access);
+    });
+
+    // After a dropped connection the server forgot our group membership: join again (the state merges through Yjs).
+    connection.onreconnected(() => {
+      connection.invoke('JoinNote', this.nodeId).catch((error) => {
+        if (String((error as Error)?.message ?? '').includes('no_access')) this.onAccessChange?.(null);
+      });
+    });
+
     this.connection = connection;
 
     try {
@@ -209,6 +236,10 @@ export class YjsSignalRProvider {
       await connection.invoke('JoinNote', this.nodeId);
     } catch (error) {
       if (this.disposed) return; // expected: negotiation aborted by a concurrent disconnect()
+      if (String((error as Error)?.message ?? '').includes('no_access')) {
+        this.onAccessChange?.(null); // the owner revoked (or never granted) access: let the UI show the "no access" screen
+        return;
+      }
       console.error('[YjsSignalRProvider] Failed to connect:', error);
       throw error;
     }

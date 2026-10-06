@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useI18n } from '../../i18n/I18nProvider';
+import { useAuth } from '../auth/AuthContext';
 import type { NodeDto } from '../../services/nodesApi';
 
 export type ContextMenuState = { x: number; y: number; node: NodeDto; count: number };
@@ -17,7 +18,9 @@ type ContextMenuProps = {
  */
 export function ContextMenu({ state, onAction, onClose }: ContextMenuProps) {
   const { t } = useI18n();
+  const { user } = useAuth();
   const { node } = state;
+  const canManage = node.canManage === true || node.ownerId === user?.id;
   const isTrashed = node.isDeleted;
   const isMulti = state.count > 1;
   const ref = useRef<HTMLDivElement>(null);
@@ -66,9 +69,10 @@ export function ContextMenu({ state, onAction, onClose }: ContextMenuProps) {
                 { action: 'newFolder', label: t('tree.newFolder') },
               ]
             : []),
+          ...(canManage ? [{ action: 'share', label: t('sharing.menuShare') }] : []),
           { action: 'rename', label: t('tree.rename') },
           { action: 'move', label: t('tree.moveTo') },
-          { action: 'duplicate', label: t('tree.duplicate') },
+          ...(node.accessLevel === 'Read' ? [] : [{ action: 'duplicate', label: t('tree.duplicate') }]),
           { action: 'favorite', label: node.isFavorite ? '★ / ☆' : '☆ / ★' },
           { action: 'delete', label: t('tree.delete') },
         ];

@@ -24,15 +24,17 @@ public sealed class CollaborativeNoteHub : Hub
     private readonly IPermissionRepository _permissionRepository;
     private readonly IAdminRepository _adminRepository;
     private readonly IUserStatusService _userStatus;
+    private readonly INoteConnectionTracker _connections;
 
     public CollaborativeNoteHub(IYjsDocumentStore documentStore, INodeRepository nodeRepository, IPermissionRepository permissionRepository,
-        IAdminRepository adminRepository, IUserStatusService userStatus)
+        IAdminRepository adminRepository, IUserStatusService userStatus, INoteConnectionTracker connections)
     {
         _documentStore = documentStore;
         _nodeRepository = nodeRepository;
         _permissionRepository = permissionRepository;
         _adminRepository = adminRepository;
         _userStatus = userStatus;
+        _connections = connections;
     }
 
     private Guid UserId => Guid.Parse(Context.UserIdentifier ?? Context.User!.FindFirst("sub")!.Value);
@@ -40,13 +42,20 @@ public sealed class CollaborativeNoteHub : Hub
 
     public async Task JoinNote(Guid nodeId)
     {
+        var status = await _userStatus.GetAsync(UserId);
+        if (!status.Exists || !status.IsActive)
+        {
+            throw new HubException("account_blocked");
+        }
+
         var access = await _permissionRepository.CheckAccessAsync(nodeId, UserId);
         if (access is null)
         {
-            throw new HubException("You do not have access to this note.");
+            throw new HubException("no_access");
         }
 
         await Groups.AddToGroupAsync(Context.ConnectionId, NoteGroup(nodeId));
+        _connections.Add(Context.ConnectionId, UserId, nodeId, access);
 
         var existingState = _documentStore.GetState(nodeId);
         if (existingState is null)
@@ -64,12 +73,20 @@ public sealed class CollaborativeNoteHub : Hub
 
     public async Task LeaveNote(Guid nodeId)
     {
+        if (!_connections.IsIn(Context.ConnectionId, nodeId)) return;
+        _connections.Remove(Context.ConnectionId, nodeId);
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, NoteGroup(nodeId));
         await Clients.OthersInGroup(NoteGroup(nodeId)).SendAsync("UserLeft", nodeId, Context.ConnectionId);
     }
 
     private async Task EnsureEditableAsync(Guid nodeId)
     {
+        // Only connections that joined (and were not removed after a revocation) may talk to the note group.
+        if (!_connections.IsIn(Context.ConnectionId, nodeId))
+        {
+            throw new HubException("no_access");
+        }
+
         // The account may have been blocked after this connection was opened.
         var status = await _userStatus.GetAsync(UserId);
         if (!status.Exists || !status.IsActive)
@@ -80,7 +97,7 @@ public sealed class CollaborativeNoteHub : Hub
         var access = await _permissionRepository.CheckAccessAsync(nodeId, UserId);
         if (access is null || access == "Read")
         {
-            throw new HubException("You do not have edit access to this note.");
+            throw new HubException("read_only");
         }
 
         // Trashed notes are read-only until restored.
@@ -122,11 +139,18 @@ public sealed class CollaborativeNoteHub : Hub
     /// <summary>Broadcasts awareness (cursor position, selection, user color) to peers.</summary>
     public async Task SendAwarenessUpdate(Guid nodeId, byte[] update)
     {
+        // Spectators too may share their cursor, but only members of the note group.
+        if (!_connections.IsIn(Context.ConnectionId, nodeId)) return;
         await Clients.OthersInGroup(NoteGroup(nodeId)).SendAsync("ReceiveAwarenessUpdate", nodeId, update);
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
+        foreach (var nodeId in _connections.RemoveConnection(Context.ConnectionId))
+        {
+            await Clients.OthersInGroup(NoteGroup(nodeId)).SendAsync("UserLeft", nodeId, Context.ConnectionId);
+        }
+
         await base.OnDisconnectedAsync(exception);
     }
 }

@@ -11,6 +11,7 @@ public interface IFileService
 {
     Task<FileUploadResult> UploadAsync(Guid userId, Guid nodeId, Stream content, long length, string originalName);
     Task<(NodeFile File, Stream Content)?> OpenReadAsync(Guid userId, Guid fileId);
+    Task<(NodeFile File, Stream Content)?> OpenPublicAsync(string token, Guid fileId);
     Task<IReadOnlyList<NodeFile>> ListTreeAsync(Guid nodeId);
     void DeleteFromDisk(IEnumerable<NodeFile> files);
 }
@@ -75,6 +76,20 @@ public sealed class FileService : IFileService
         }
     }
 
+    public async Task<(NodeFile File, Stream Content)?> OpenPublicAsync(string token, Guid fileId)
+    {
+        var file = await _permissions.GetPublicFileAsync(token, fileId);
+        return file is null ? null : Open(file);
+    }
+
+    private (NodeFile File, Stream Content)? Open(NodeFile file)
+    {
+        var path = Path.Combine(_root, file.NodeId.ToString("N"), file.StoredName);
+        if (!File.Exists(path)) return null;
+
+        return (file, new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true));
+    }
+
     public async Task<(NodeFile File, Stream Content)?> OpenReadAsync(Guid userId, Guid fileId)
     {
         var file = await _files.GetByIdAsync(fileId);
@@ -83,10 +98,7 @@ public sealed class FileService : IFileService
         var access = await _permissions.CheckAccessAsync(file.NodeId, userId);
         if (access is null) throw new UnauthorizedAccessException("You do not have access to this file.");
 
-        var path = Path.Combine(_root, file.NodeId.ToString("N"), file.StoredName);
-        if (!File.Exists(path)) return null;
-
-        return (file, new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true));
+        return Open(file);
     }
 
     public async Task<IReadOnlyList<NodeFile>> ListTreeAsync(Guid nodeId) =>

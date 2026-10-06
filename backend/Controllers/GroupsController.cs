@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NotesApp.Api.Application.DTOs;
 using NotesApp.Api.Services;
@@ -22,26 +22,26 @@ public sealed class GroupsController : ControllerBase
         Ok(await _groupService.CreateAsync(User.GetUserId(), request.Name, request.Description));
 
     [HttpGet("{id:guid}/members")]
-    public async Task<IActionResult> GetMembers(Guid id) => Ok(await _groupService.GetMembersAsync(id));
+    public async Task<IActionResult> GetMembers(Guid id) => Ok(await _groupService.GetMembersAsync(User.GetUserId(), id));
 
     [HttpPost("{id:guid}/members")]
     public async Task<IActionResult> AddMember(Guid id, [FromBody] AddGroupMemberRequest request)
     {
-        await _groupService.AddMemberAsync(id, request.UserId, request.Role);
+        await _groupService.AddMemberAsync(User.GetUserId(), id, request.UserId, request.Role);
         return NoContent();
     }
 
     [HttpDelete("{id:guid}/members/{userId:guid}")]
     public async Task<IActionResult> RemoveMember(Guid id, Guid userId)
     {
-        await _groupService.RemoveMemberAsync(id, userId);
+        await _groupService.RemoveMemberAsync(User.GetUserId(), id, userId);
         return NoContent();
     }
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        await _groupService.DeleteAsync(id);
+        await _groupService.DeleteAsync(User.GetUserId(), id);
         return NoContent();
     }
 }

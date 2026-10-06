@@ -53,12 +53,24 @@ public interface INodeRepository
 
 public interface IPermissionRepository
 {
-    Task<NodePermission> GrantAsync(Guid nodeId, string granteeType, Guid? granteeId, string accessLevel, Guid createdBy, DateTime? expiresAt);
-    Task<NodePermission> CreateShareLinkAsync(Guid nodeId, string accessLevel, string shareToken, Guid createdBy, DateTime? expiresAt);
-    Task RevokeAsync(Guid permissionId);
+    Task<ShareResult> ShareWithEmailAsync(Guid nodeId, string email, string accessLevel, Guid createdBy, DateTime? expiresAt);
+    /// <summary>Returns the affected grantee (null when nothing matched).</summary>
+    Task<Guid?> UpdateAsync(Guid permissionId, Guid nodeId, string accessLevel, DateTime? expiresAt, Guid updatedBy);
+    Task<(bool Found, Guid? UserId)> RevokeAsync(Guid permissionId, Guid nodeId);
     Task<IEnumerable<NodePermission>> ListByNodeAsync(Guid nodeId);
+    Task<IEnumerable<ShareInvitation>> ListInvitationsAsync(Guid nodeId);
+    Task<bool> RevokeInvitationAsync(Guid invitationId, Guid nodeId);
+    Task<ShareLinkInfo?> GetShareLinkAsync(Guid nodeId);
+    Task<ShareLinkInfo> UpsertShareLinkAsync(Guid nodeId, string token, Guid createdBy, DateTime? expiresAt, bool regenerate);
+    Task DisableShareLinkAsync(Guid nodeId);
     Task<string?> CheckAccessAsync(Guid nodeId, Guid userId);
-    Task<NodePermission?> GetByShareTokenAsync(string shareToken);
+    Task<int> RedeemInvitationsAsync(Guid userId, string email);
+
+    // Anonymous read access through a public link.
+    Task<PublicRoot?> ResolvePublicAsync(string token);
+    Task<IEnumerable<PublicTreeNode>> GetPublicTreeAsync(string token);
+    Task<PublicNodeContent?> GetPublicNodeAsync(string token, Guid nodeId);
+    Task<NodeFile?> GetPublicFileAsync(string token, Guid fileId);
 }
 
 public interface IAuditRepository

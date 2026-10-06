@@ -31,6 +31,12 @@ export type CollaborativeEditorProps = {
   /** Location of the trashed note (ancestor names). */
   trashPath?: string | null;
   onRestore?: () => Promise<void> | void;
+  /** The user may read but not edit (Read access): the editor is locked and nothing is sent to the server. */
+  readOnly?: boolean;
+  /** Only owners manage sharing; everybody else gets no Share button. */
+  canManage?: boolean;
+  /** Live access change pushed by the server (null = access lost). */
+  onAccessChanged?: (access: string | null) => void;
 };
 
 /**
@@ -39,7 +45,8 @@ export type CollaborativeEditorProps = {
  * concurrent edits, so multiple users editing the same note see changes
  * merge instantly and without conflicts.
  */
-export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed = false, trashPath, onRestore }: CollaborativeEditorProps) {
+export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed = false, trashPath, onRestore, readOnly = false, canManage = true, onAccessChanged }: CollaborativeEditorProps) {
+  const locked = trashed || readOnly;
   const { user } = useAuth();
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -55,13 +62,15 @@ export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed
   if (!providerRef.current) {
     providerRef.current = new YjsSignalRProvider(nodeId, ydocRef.current);
   }
-  // Trashed notes never send edits or snapshots (the server rejects them as well).
-  providerRef.current.readOnly = trashed;
+  // Trashed or read-only notes never send edits or snapshots (the server rejects them as well).
+  providerRef.current.readOnly = locked;
 
   const resolverRef = useRef<ReturnType<typeof createFileResolver> | null>(null);
   resolverRef.current ??= createFileResolver();
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [quotaReached, setQuotaReached] = useState(false);
+  const onAccessChangedRef = useRef(onAccessChanged);
+  onAccessChangedRef.current = onAccessChanged;
 
   const editor = useCreateBlockNote(
     withCollaboration({
@@ -94,6 +103,7 @@ export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed
     provider.onPresenceUpdate(setPresence);
     provider.onSynced(() => setLoadState('ready'));
     provider.onQuotaExceeded(() => setQuotaReached(true));
+    provider.onAccessChanged((access) => onAccessChangedRef.current?.(access));
     if (provider.isSynced) setLoadState('ready');
 
     // Never leave the skeleton up forever: fail after a timeout or a connection error.
@@ -176,8 +186,16 @@ export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed
           </button>
         </div>
       )}
+      {readOnly && !trashed && (
+        <div role="status" className="flex shrink-0 items-center gap-2 border-b border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 sm:px-4">
+          <span aria-hidden="true">👁</span>
+          <span className="min-w-0">{t('sharing.readOnlyNotice')}</span>
+        </div>
+      )}
       <EditorToolbar
         shareDisabled={trashed}
+        canShare={canManage}
+        readOnly={readOnly && !trashed}
         title={noteName || t('editor.untitled')}
         saveState={saveState}
         presence={presence}
@@ -190,7 +208,7 @@ export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed
 
       <div className="relative min-h-0 flex-1">
         <div ref={containerRef} className="h-full overflow-y-auto bg-bg-base px-3 py-4 sm:px-6">
-          <BlockNoteView editor={editor} theme="light" editable={!trashed} />
+          <BlockNoteView editor={editor} theme="light" editable={!locked} />
         </div>
 
         {loadState !== 'ready' && (

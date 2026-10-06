@@ -5,7 +5,7 @@ import type { Language } from '../i18n/translations';
  * (appsettings.json): the server rejects logins that do not carry the current version.
  * Bump it (in both places) whenever the texts change materially so users accept again.
  */
-export const TERMS_VERSION = '2026-10-05';
+export const TERMS_VERSION = '2026-10-06';
 export const CONTACT_EMAIL = 'info@d4nthi.com';
 
 export type LegalSection = { heading: string; paragraphs: string[] };
@@ -15,7 +15,7 @@ export type LegalKind = 'terms' | 'privacy';
 const es: Record<LegalKind, LegalDocument> = {
   terms: {
     title: 'Términos y Condiciones de Uso',
-    updated: 'Última actualización: 5 de octubre de 2026',
+    updated: 'Última actualización: 6 de octubre de 2026',
     intro:
       'Estos Términos y Condiciones regulan el acceso y uso de Notes (la «Aplicación»), un servicio de notas y archivos colaborativos en tiempo real ofrecido por d4nthi («d4nthi», «nosotros»). Al iniciar sesión declaras que los has leído y que los aceptas.',
     sections: [
@@ -43,7 +43,8 @@ const es: Record<LegalKind, LegalDocument> = {
         heading: '4. Contenido del usuario',
         paragraphs: [
           'Conservas la titularidad sobre el contenido que creas o cargas. Nos otorgas una licencia limitada, no exclusiva y gratuita únicamente para almacenarlo, procesarlo y mostrarlo con el fin de prestarte el servicio (incluida la colaboración con las personas con quienes decidas compartirlo).',
-          'Eres el único responsable del contenido y de contar con los derechos necesarios para publicarlo. Cuando compartes una nota, quienes reciban acceso podrán verla y, según el permiso otorgado, editarla.',
+          'Eres el único responsable del contenido y de contar con los derechos necesarios para publicarlo. Cuando compartes una nota o carpeta con una persona, quien reciba acceso podrá verla y, según el permiso otorgado (lector o editor), editarla; solo tú, como propietario, puedes cambiar o retirar ese permiso y eliminar el contenido de forma definitiva.',
+          'Si activas un enlace público, cualquier persona que lo tenga podrá ver el contenido (y el de las subcarpetas, si compartes una carpeta) en modo de solo lectura, sin iniciar sesión. Puedes desactivarlo, renovarlo o ponerle caducidad en cualquier momento; el enlace deja de funcionar de inmediato. Compartir por correo con alguien que aún no tiene cuenta crea una invitación que se activa cuando inicie sesión con ese correo y caduca a los 30 días.',
         ],
       },
       {
@@ -101,7 +102,7 @@ const es: Record<LegalKind, LegalDocument> = {
   },
   privacy: {
     title: 'Política de Privacidad y Tratamiento de Datos Personales',
-    updated: 'Última actualización: 5 de octubre de 2026',
+    updated: 'Última actualización: 6 de octubre de 2026',
     intro:
       'En cumplimiento de la Ley 1581 de 2012, el Decreto 1377 de 2013 (compilado en el Decreto 1074 de 2015) y demás normas colombianas sobre protección de datos personales, d4nthi informa cómo trata la información de los usuarios de Notes.',
     sections: [
@@ -113,7 +114,7 @@ const es: Record<LegalKind, LegalDocument> = {
         heading: '2. Datos que tratamos',
         paragraphs: [
           'Datos de tu cuenta de Google que autorizas al iniciar sesión: identificador de Google, correo electrónico, nombre y foto de perfil.',
-          'Contenido que generas: notas, carpetas, imágenes, nombres, y la información de permisos con quién las compartes.',
+          'Contenido que generas: notas, carpetas, imágenes, nombres, y la información de permisos con quién las compartes (incluidos los correos de las personas invitadas y los enlaces públicos activos).',
           'Datos de uso y seguridad: idioma preferido, notas recientes y favoritas, fechas de alta, último inicio de sesión y última actividad, si tienes la aplicación abierta en este momento (estado «en línea»), el espacio de almacenamiento usado y tu límite, registros de auditoría de acciones sobre elementos (creación, edición, cambios de permiso, eliminación), y la versión y fecha de aceptación de los Términos.',
           'Estos datos son visibles para los administradores de d4nthi con fines de operación, seguridad y soporte. Los administradores ven metadatos y el espacio usado, no el contenido de tus notas.',
           'No recolectamos datos sensibles de forma intencional. Eres responsable de no incluirlos en tus notas si no es necesario.',
@@ -178,7 +179,7 @@ const es: Record<LegalKind, LegalDocument> = {
 const en: Record<LegalKind, LegalDocument> = {
   terms: {
     title: 'Terms and Conditions of Use',
-    updated: 'Last updated: October 5, 2026',
+    updated: 'Last updated: October 6, 2026',
     intro:
       'These Terms and Conditions govern access to and use of Notes (the “Application”), a real-time collaborative notes and files service provided by d4nthi (“d4nthi”, “we”). By signing in you declare that you have read and accept them.',
     sections: [
@@ -206,7 +207,8 @@ const en: Record<LegalKind, LegalDocument> = {
         heading: '4. User content',
         paragraphs: [
           'You keep ownership of the content you create or upload. You grant us a limited, non-exclusive, royalty-free license solely to store, process and display it to provide the service (including collaboration with the people you choose to share it with).',
-          'You are solely responsible for your content and for having the rights needed to publish it. When you share a note, people who receive access can view it and, depending on the permission granted, edit it.',
+          'You are solely responsible for your content and for having the rights needed to publish it. When you share a note or folder with a person, whoever receives access can view it and, depending on the permission granted (viewer or editor), edit it; only you, as owner, can change or withdraw that permission and permanently delete the content.',
+          'If you turn on a public link, anyone who has it can view the content (and that of the subfolders, if you share a folder) in read-only mode, without signing in. You can turn it off, renew it or set an expiry at any time; the link stops working immediately. Sharing by e-mail with someone who has no account yet creates an invitation that is activated when they sign in with that e-mail and expires after 30 days.',
         ],
       },
       {
@@ -264,7 +266,7 @@ const en: Record<LegalKind, LegalDocument> = {
   },
   privacy: {
     title: 'Privacy Policy and Personal Data Processing',
-    updated: 'Last updated: October 5, 2026',
+    updated: 'Last updated: October 6, 2026',
     intro:
       'In compliance with Law 1581 of 2012, Decree 1377 of 2013 (compiled in Decree 1074 of 2015) and other Colombian personal data protection rules, d4nthi explains how it processes the information of Notes users.',
     sections: [
@@ -276,7 +278,7 @@ const en: Record<LegalKind, LegalDocument> = {
         heading: '2. Data we process',
         paragraphs: [
           'Google account data you authorize when signing in: Google identifier, email address, name and profile picture.',
-          'Content you generate: notes, folders, images, names, and the permission information of who you share them with.',
+          'Content you generate: notes, folders, images, names, and the permission information of who you share them with (including the e-mails of invited people and active public links).',
           'Usage and security data: preferred language, recent and favorite items, sign-up date, last sign-in and last activity, whether you have the app open right now (“online” status), the storage space used and your limit, audit logs of actions on items (creation, edits, permission changes, deletion), and the version and date of your acceptance of the Terms.',
           'This data is visible to d4nthi administrators for operations, security and support purposes. Administrators see metadata and space used, not the content of your notes.',
           'We do not intentionally collect sensitive data. You are responsible for not including it in your notes unless necessary.',

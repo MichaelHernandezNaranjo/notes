@@ -1,4 +1,5 @@
 import type { NodeDto } from '../../services/nodesApi';
+import { useI18n } from '../../i18n/I18nProvider';
 import { InlineNameInput } from './InlineNameInput';
 
 export type DraftNode = { parentId: string | null; type: 'Folder' | 'Note' };
@@ -49,6 +50,7 @@ export function TreeNode(props: TreeNodeProps) {
     onCancelEdit,
   } = props;
   const isFolder = node.type === 'Folder';
+  const { t } = useI18n();
   const isSelected = selectedIds.has(node.id);
   const isActive = activeNodeId === node.id;
   const isEditing = editingId === node.id;
@@ -104,6 +106,14 @@ export function TreeNode(props: TreeNodeProps) {
             }}
           >
             {node.name}
+          </span>
+        )}
+        {node.accessLevel && node.accessLevel !== 'Owner' && !isEditing && (
+          <span
+            className="ml-1 shrink-0 rounded-full bg-neutral-200 px-1.5 text-[10px] font-medium text-neutral-700"
+            title={node.accessLevel === 'Read' ? t('sharing.levelReadHint') : t('sharing.levelEditHint')}
+          >
+            {node.accessLevel === 'Read' ? t('sharing.levelRead') : t('sharing.levelEdit')}
           </span>
         )}
         {node.isFavorite && !isEditing && <span className="ml-auto text-accent-emerald">★</span>}

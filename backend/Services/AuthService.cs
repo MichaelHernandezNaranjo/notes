@@ -1,4 +1,4 @@
-using NotesApp.Api.Application.DTOs;
+﻿using NotesApp.Api.Application.DTOs;
 using NotesApp.Api.Domain.Entities;
 using NotesApp.Api.Domain.Interfaces;
 using NotesApp.Api.Infrastructure.Auth;
@@ -30,6 +30,7 @@ public sealed class AuthService : IAuthService
     private readonly IRefreshTokenRepository _refreshTokenRepository;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IAdminRepository _adminRepository;
+    private readonly IPermissionRepository _permissionRepository;
     private readonly IUserStatusService _userStatus;
     private readonly IConfiguration _configuration;
 
@@ -39,6 +40,7 @@ public sealed class AuthService : IAuthService
         IRefreshTokenRepository refreshTokenRepository,
         IJwtTokenService jwtTokenService,
         IAdminRepository adminRepository,
+        IPermissionRepository permissionRepository,
         IUserStatusService userStatus,
         IConfiguration configuration)
     {
@@ -47,6 +49,7 @@ public sealed class AuthService : IAuthService
         _refreshTokenRepository = refreshTokenRepository;
         _jwtTokenService = jwtTokenService;
         _adminRepository = adminRepository;
+        _permissionRepository = permissionRepository;
         _userStatus = userStatus;
         _configuration = configuration;
     }
@@ -70,6 +73,12 @@ public sealed class AuthService : IAuthService
         }
 
         // Root administrators come from configuration, and only when Google vouches for the e-mail address.
+        if (profile.EmailVerified)
+        {
+            // People shared items by e-mail before they had an account: those invitations become real access now.
+            await _permissionRepository.RedeemInvitationsAsync(user.Id, profile.Email);
+        }
+
         if (profile.EmailVerified && !user.IsSuperAdmin && _userStatus.IsRootAdminEmail(profile.Email))
         {
             await _adminRepository.SetSuperAdminAsync(user.Id, true);

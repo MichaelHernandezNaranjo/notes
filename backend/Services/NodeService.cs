@@ -1,4 +1,4 @@
-using NotesApp.Api.Application.DTOs;
+﻿using NotesApp.Api.Application.DTOs;
 using NotesApp.Api.Domain.Entities;
 using NotesApp.Api.Domain.Interfaces;
 
@@ -62,8 +62,16 @@ public sealed class NodeService : INodeService
 
     public async Task<NodeDto?> MoveAsync(Guid userId, Guid nodeId, Guid? newParentId, int? newSortOrder)
     {
-        await EnsureAccessAsync(userId, nodeId, requireEdit: true);
+        var access = await EnsureAccessAsync(userId, nodeId, requireEdit: true);
         await EnsureNotTrashedAsync(nodeId);
+
+        // Editors may reorder inside the same folder; changing folders changes who can see the node, so it is the owner's call.
+        var current = await _nodeRepository.GetByIdAsync(nodeId);
+        if (access != "Owner" && current?.ParentId != newParentId)
+        {
+            throw new UnauthorizedAccessException("Only the owner can move this item to another folder.");
+        }
+
         if (newParentId is not null)
         {
             await EnsureAccessAsync(userId, newParentId.Value, requireEdit: true);
@@ -76,7 +84,8 @@ public sealed class NodeService : INodeService
 
     public async Task<NodeDto?> DuplicateAsync(Guid userId, Guid nodeId)
     {
-        await EnsureAccessAsync(userId, nodeId, requireEdit: false);
+        // Readers cannot take a copy of somebody else's content.
+        await EnsureAccessAsync(userId, nodeId, requireEdit: true);
         var node = await _nodeRepository.DuplicateAsync(nodeId, userId);
         return node is null ? null : Map(node);
     }
@@ -97,7 +106,7 @@ public sealed class NodeService : INodeService
 
     public async Task HardDeleteAsync(Guid userId, Guid nodeId)
     {
-        await EnsureAccessAsync(userId, nodeId, requireEdit: true);
+        await EnsureAccessAsync(userId, nodeId, requireEdit: true, requireOwner: true);
 
         // Collect the images first: the DB rows disappear (cascade) with the nodes.
         var files = await _fileService.ListTreeAsync(nodeId);
@@ -109,7 +118,7 @@ public sealed class NodeService : INodeService
     }
 
     public async Task<IEnumerable<NodeDto>> GetTreeAsync(Guid userId) =>
-        (await _nodeRepository.GetTreeByUserAsync(userId)).Select(Map);
+        (await _nodeRepository.GetTreeByUserAsync(userId)).Select(n => Map(n));
 
     public async Task<IEnumerable<NodeDto>> GetChildrenAsync(Guid userId, Guid? parentId)
     {
@@ -119,11 +128,19 @@ public sealed class NodeService : INodeService
             await EnsureAccessAsync(userId, parentId.Value, requireEdit: false);
         }
 
-        return (await _nodeRepository.GetChildrenAsync(parentId, userId)).Select(Map);
+        return (await _nodeRepository.GetChildrenAsync(parentId, userId)).Select(n => Map(n));
     }
 
-    public async Task<IEnumerable<NodeDto>> GetSharedWithMeAsync(Guid userId) =>
-        (await _nodeRepository.GetSharedWithMeAsync(userId)).Select(Map);
+    public async Task<IEnumerable<NodeDto>> GetSharedWithMeAsync(Guid userId)
+    {
+        var list = new List<NodeDto>();
+        foreach (var node in await _nodeRepository.GetSharedWithMeAsync(userId))
+        {
+            list.Add(Map(node, await _permissionRepository.CheckAccessAsync(node.Id, userId)));
+        }
+
+        return list;
+    }
 
     public async Task<IEnumerable<NodeSearchResultDto>> SearchAsync(Guid userId, string query, int limit)
     {
@@ -139,20 +156,20 @@ public sealed class NodeService : INodeService
     }
 
     public async Task<IEnumerable<NodeDto>> GetRecentAsync(Guid userId, int top) =>
-        (await _nodeRepository.GetRecentAsync(userId, top)).Select(Map);
+        (await _nodeRepository.GetRecentAsync(userId, top)).Select(n => Map(n));
 
     public async Task<IEnumerable<NodeDto>> GetFavoritesAsync(Guid userId) =>
-        (await _nodeRepository.GetFavoritesAsync(userId)).Select(Map);
+        (await _nodeRepository.GetFavoritesAsync(userId)).Select(n => Map(n));
 
     public async Task<IEnumerable<NodeDto>> GetTrashAsync(Guid userId) =>
-        (await _nodeRepository.GetTrashAsync(userId)).Select(Map);
+        (await _nodeRepository.GetTrashAsync(userId)).Select(n => Map(n));
 
     public Task<bool> ToggleFavoriteAsync(Guid userId, Guid nodeId) =>
         _nodeRepository.ToggleFavoriteAsync(userId, nodeId);
 
     public async Task<NodeDto?> GetByIdAsync(Guid userId, Guid nodeId, bool touchRecent = true)
     {
-        await EnsureAccessAsync(userId, nodeId, requireEdit: false);
+        var access = await EnsureAccessAsync(userId, nodeId, requireEdit: false);
         var node = await _nodeRepository.GetByIdAsync(nodeId);
         if (node is null) return null;
 
@@ -161,7 +178,7 @@ public sealed class NodeService : INodeService
             await _nodeRepository.TouchRecentAsync(userId, nodeId);
         }
 
-        return Map(node);
+        return Map(node, access);
     }
 
     private async Task EnsureNotTrashedAsync(Guid nodeId)
@@ -173,7 +190,7 @@ public sealed class NodeService : INodeService
         }
     }
 
-    private async Task EnsureAccessAsync(Guid userId, Guid nodeId, bool requireEdit)
+    private async Task<string> EnsureAccessAsync(Guid userId, Guid nodeId, bool requireEdit, bool requireOwner = false)
     {
         var access = await _permissionRepository.CheckAccessAsync(nodeId, userId);
         if (access is null)
@@ -185,9 +202,17 @@ public sealed class NodeService : INodeService
         {
             throw new UnauthorizedAccessException("Read-only access does not permit this operation.");
         }
+
+        if (requireOwner && access != "Owner")
+        {
+            throw new UnauthorizedAccessException("Only the owner can do this.");
+        }
+
+        return access;
     }
 
-    private static NodeDto Map(Node n) => new(
+    private static NodeDto Map(Node n, string? access = null) => new(
         n.Id, n.ParentId, n.OwnerId, n.Type, n.Name, n.ContentJson,
-        n.SortOrder, n.IsDeleted, n.DeletedAt, n.CreatedAt, n.UpdatedAt, n.IsFavorite, n.Path, n.DeletedRootId);
+        n.SortOrder, n.IsDeleted, n.DeletedAt, n.CreatedAt, n.UpdatedAt, n.IsFavorite, n.Path, n.DeletedRootId,
+        access, access == "Owner");
 }

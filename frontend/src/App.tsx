@@ -1,6 +1,8 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { AppLayout } from './app/AppLayout';
 import { useAuth } from './features/auth/AuthContext';
+import { rememberReturnTo } from './features/auth/returnTo';
+import { PublicSharePage } from './features/sharing/PublicSharePage';
 import { LoginPage } from './pages/LoginPage';
 import { LegalPage } from './pages/LegalPage';
 import { GoogleCallbackPage } from './pages/GoogleCallbackPage';
@@ -10,7 +12,12 @@ import { AdminPage } from './features/admin/AdminPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
+  const location = useLocation();
+  if (!user) {
+    // Keep the destination (e.g. a shared note link) so it opens right after signing in.
+    rememberReturnTo(location.pathname + location.search);
+    return <Navigate to="/login" replace />;
+  }
   return <>{children}</>;
 }
 
@@ -28,6 +35,9 @@ export default function App() {
       <Route path="/terms" element={<LegalPage kind="terms" />} />
       <Route path="/privacy" element={<LegalPage kind="privacy" />} />
       <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
+      {/* Anonymous, read-only viewer for public share links. */}
+      <Route path="/s/:token" element={<PublicSharePage />} />
+      <Route path="/s/:token/:nodeId" element={<PublicSharePage />} />
 
       <Route
         element={

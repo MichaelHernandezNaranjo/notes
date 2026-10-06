@@ -4,6 +4,25 @@ La versión que se muestra en «Acerca de» sale de `frontend/package.json` (ún
 Se sube antes de cada push y se añade aquí una entrada. Esquema semver: parche = correcciones y ajustes,
 menor = funcionalidades nuevas, mayor = cambios incompatibles.
 
+## 1.2.0 — 2026-10-06
+
+- **Compartir rehecho desde cero** (los enlaces anteriores nunca llegaron a funcionar y se descartan):
+  - **Personas por correo**, con permiso de Lector o Editor que se puede cambiar en cualquier momento sin quitar y volver a dar acceso. Si la persona aún no tiene cuenta, se crea una invitación que se activa al iniciar sesión con ese correo (caduca a los 30 días).
+  - **Enlace público de solo lectura** (`/s/…`) que se ve sin cuenta, con copiar, caducidad opcional, regenerar, desactivar y contador de visitas. Imágenes incluidas, sin cookies ni sesión.
+  - **Carpetas completas**: el permiso o el enlace se hereda a todo el contenido, también al futuro. El permiso más cercano a la nota prevalece, y el diálogo muestra «heredado de la carpeta X». El enlace de carpeta trae un árbol para navegar.
+- **Seguridad:**
+  - Gestionar accesos es solo del propietario; antes cualquier usuario autenticado podía listar, crear o revocar permisos de cualquier nota.
+  - Solo el propietario borra definitivamente y mueve fuera de una carpeta. Un lector ya no puede duplicar.
+  - Grupos: solo propietarios y administradores del grupo gestionan miembros.
+  - Al cambiar o quitar un permiso, las sesiones abiertas se actualizan al instante (el usuario deja de recibir cambios), en vez de seguir recibiéndolos hasta cerrar la pestaña.
+  - El hub en tiempo real comprueba cuenta bloqueada y pertenencia al grupo; el cursor y la salida de la nota ya no se pueden falsear desde fuera.
+  - Las imágenes ya no se guardan 24 h en la caché del navegador, así que dejan de verse al revocar.
+  - Endpoint público con límite de peticiones, 404 uniforme, `noindex` y sin cabeceras de identidad.
+- **Editor:** un lector ve la nota de verdad en solo lectura (antes se podía escribir y el cambio se perdía en silencio), con insignia y aviso. Se oculta Compartir a quien no es propietario. Aviso en vivo si cambian tus permisos.
+- **Navegación:** al abrir un enlace sin sesión, se vuelve a esa nota tras iniciar sesión (antes se perdía el destino). Pantalla «Sin acceso» en vez de 10 s de spinner. Insignias Lector/Editor en «Compartido conmigo». Compartir desde el menú contextual del árbol.
+- Auditoría de compartir, cambiar permiso, revocar, e invitar o activar/desactivar enlaces.
+- Migración `0005` (invitaciones, un enlace por nota, índices únicos) con copia previa. Términos y Política actualizados (enlaces públicos e invitaciones): versión `2026-10-06`, todos aceptan de nuevo.
+
 ## 1.1.0 — 2026-10-05
 
 - **Panel de administración (`/admin`, solo super admin):**

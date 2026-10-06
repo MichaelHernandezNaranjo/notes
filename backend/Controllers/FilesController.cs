@@ -36,7 +36,8 @@ public sealed class FilesController : ControllerBase
         if (opened is null) return NotFound();
 
         Response.Headers["X-Content-Type-Options"] = "nosniff";
-        Response.Headers["Cache-Control"] = "private, max-age=86400";
+        // Revalidated on every use so a revoked share stops serving images immediately (no 24 h browser cache).
+        Response.Headers["Cache-Control"] = "private, no-cache";
         return File(opened.Value.Content, opened.Value.File.ContentType);
     }
 }

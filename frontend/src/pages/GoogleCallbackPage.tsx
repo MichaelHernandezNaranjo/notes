@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../features/auth/AuthContext';
 import { apiErrorCode } from '../services/adminApi';
+import { consumeReturnTo } from '../features/auth/returnTo';
 
 /** Handles the redirect back from Google (?code=...) and exchanges it via the backend. */
 export function GoogleCallbackPage() {
@@ -22,7 +23,7 @@ export function GoogleCallbackPage() {
 
     const redirectUri = `${window.location.origin}/auth/google/callback`;
     completeGoogleLogin(code, redirectUri)
-      .then(() => navigate('/', { replace: true }))
+      .then(() => navigate(consumeReturnTo() ?? '/', { replace: true }))
       .catch((error) => {
         // Tell the login screen why it failed instead of silently coming back to it.
         const reason = apiErrorCode(error);

@@ -5,38 +5,52 @@ using NotesApp.Api.Services;
 
 namespace NotesApp.Api.Controllers;
 
+/// <summary>Sharing management. Every action is reserved to the owner of the node (checked in <see cref="PermissionService"/>).</summary>
 [ApiController]
 [Authorize]
-[Route("api/nodes/{nodeId:guid}/permissions")]
+[Route("api/nodes/{nodeId:guid}/sharing")]
 public sealed class PermissionsController : ControllerBase
 {
-    private readonly IPermissionService _permissionService;
+    private readonly IPermissionService _service;
 
-    public PermissionsController(IPermissionService permissionService) => _permissionService = permissionService;
+    public PermissionsController(IPermissionService service) => _service = service;
 
     [HttpGet]
-    public async Task<IActionResult> List(Guid nodeId) => Ok(await _permissionService.ListByNodeAsync(nodeId));
+    public async Task<ActionResult<SharingDto>> Get(Guid nodeId) => Ok(await _service.GetSharingAsync(User.GetUserId(), nodeId));
 
-    [HttpPost]
-    public async Task<IActionResult> Grant(Guid nodeId, [FromBody] GrantPermissionRequest request) =>
-        Ok(await _permissionService.GrantAsync(nodeId, request.GranteeType, request.GranteeId, request.AccessLevel, User.GetUserId(), request.ExpiresAt));
+    [HttpPost("people")]
+    public async Task<ActionResult<ShareResultDto>> Share(Guid nodeId, [FromBody] ShareWithEmailRequest request) =>
+        Ok(await _service.ShareWithEmailAsync(User.GetUserId(), nodeId, request));
 
-    [HttpPost("link")]
-    public async Task<IActionResult> CreateShareLink(Guid nodeId, [FromBody] CreateShareLinkRequest request) =>
-        Ok(await _permissionService.CreateShareLinkAsync(nodeId, request.AccessLevel, User.GetUserId(), request.ExpiresAt));
-
-    [HttpDelete("{permissionId:guid}")]
-    public async Task<IActionResult> Revoke(Guid nodeId, Guid permissionId)
+    [HttpPut("people/{permissionId:guid}")]
+    public async Task<IActionResult> Update(Guid nodeId, Guid permissionId, [FromBody] UpdatePermissionRequest request)
     {
-        await _permissionService.RevokeAsync(permissionId);
+        await _service.UpdateAsync(User.GetUserId(), nodeId, permissionId, request);
         return NoContent();
     }
 
-    [HttpGet("~/api/share/{token}")]
-    [AllowAnonymous]
-    public async Task<IActionResult> GetByToken(string token)
+    [HttpDelete("people/{permissionId:guid}")]
+    public async Task<IActionResult> Revoke(Guid nodeId, Guid permissionId)
     {
-        var permission = await _permissionService.GetByShareTokenAsync(token);
-        return permission is null ? NotFound() : Ok(permission);
+        await _service.RevokeAsync(User.GetUserId(), nodeId, permissionId);
+        return NoContent();
+    }
+
+    [HttpDelete("invitations/{invitationId:guid}")]
+    public async Task<IActionResult> RevokeInvitation(Guid nodeId, Guid invitationId)
+    {
+        await _service.RevokeInvitationAsync(User.GetUserId(), nodeId, invitationId);
+        return NoContent();
+    }
+
+    [HttpPut("link")]
+    public async Task<ActionResult<ShareLinkDto>> EnableLink(Guid nodeId, [FromBody] ShareLinkRequest request) =>
+        Ok(await _service.EnableLinkAsync(User.GetUserId(), nodeId, request));
+
+    [HttpDelete("link")]
+    public async Task<IActionResult> DisableLink(Guid nodeId)
+    {
+        await _service.DisableLinkAsync(User.GetUserId(), nodeId);
+        return NoContent();
     }
 }

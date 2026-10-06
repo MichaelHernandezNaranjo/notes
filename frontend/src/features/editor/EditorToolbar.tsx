@@ -10,6 +10,10 @@ export type EditorToolbarProps = {
   onShare: () => void;
   onBack?: () => void;
   shareDisabled?: boolean;
+  /** False for non-owners: the Share button is not shown. */
+  canShare?: boolean;
+  /** Shows the "Read-only" badge. */
+  readOnly?: boolean;
   onExportPdf: () => void;
   onExportPng: () => void;
   onExportJpg: () => void;
@@ -64,6 +68,8 @@ export function EditorToolbar({
   onShare,
   onBack,
   shareDisabled = false,
+  canShare = true,
+  readOnly = false,
   onExportPdf,
   onExportPng,
   onExportJpg,
@@ -112,6 +118,9 @@ export function EditorToolbar({
           </button>
         )}
         <h2 className="truncate text-base font-medium text-neutral-900">{title}</h2>
+        {readOnly && (
+          <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">{t('sharing.readOnlyBadge')}</span>
+        )}
         <span
           className="flex shrink-0 items-center gap-1.5 text-xs text-neutral-600"
           role="status"
@@ -168,17 +177,19 @@ export function EditorToolbar({
           )}
         </div>
 
-        <button
-          type="button"
-          aria-label={t('editor.share')}
-          title={t('editor.share')}
-          onClick={onShare}
-          disabled={shareDisabled}
-          className={`flex items-center gap-1.5 rounded-md bg-accent-blue px-3 py-1.5 text-sm font-medium text-white transition hover:bg-accent-blue-dark disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-accent-blue ${focusRing}`}
-        >
-          <ShareIcon />
-          <span className="hidden md:inline">{t('editor.share')}</span>
-        </button>
+        {canShare && (
+          <button
+            type="button"
+            aria-label={t('editor.share')}
+            title={t('editor.share')}
+            onClick={onShare}
+            disabled={shareDisabled}
+            className={`flex items-center gap-1.5 rounded-md bg-accent-blue px-3 py-1.5 text-sm font-medium text-white transition hover:bg-accent-blue-dark disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-accent-blue ${focusRing}`}
+          >
+            <ShareIcon />
+            <span className="hidden md:inline">{t('editor.share')}</span>
+          </button>
+        )}
       </div>
     </div>
   );

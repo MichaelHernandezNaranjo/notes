@@ -69,7 +69,18 @@ builder.Services.AddScoped<IUserStatusService, UserStatusService>();
 // ---------- Realtime ----------
 builder.Services.AddSingleton<IYjsDocumentStore, YjsDocumentStore>();
 builder.Services.AddSingleton<IPresenceTracker, PresenceTracker>();
+builder.Services.AddSingleton<INoteConnectionTracker, NoteConnectionTracker>();
+builder.Services.AddSingleton<INoteAccessEnforcer, NoteAccessEnforcer>();
 builder.Services.AddSignalR();
+
+// Anonymous public-link endpoints: per-IP throttle so tokens cannot be brute-forced or the viewer scraped.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("public", httpContext => System.Threading.RateLimiting.RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new System.Threading.RateLimiting.FixedWindowRateLimiterOptions { PermitLimit = 240, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+});
 
 // ---------- JWT Authentication (HTTP + SignalR WebSocket) ----------
 var jwtSection = builder.Configuration.GetSection("Jwt");
@@ -159,6 +170,22 @@ app.Use(async (context, next) =>
         context.Response.StatusCode = ex.Number == 50001 ? StatusCodes.Status409Conflict : StatusCodes.Status400BadRequest;
         await context.Response.WriteAsJsonAsync(new { error = ex.Message, code = ex.Number == 50001 ? "duplicate_name" : "empty_name" });
     }
+    catch (SharingException ex) when (!context.Response.HasStarted)
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message, code = ex.Code });
+    }
+    catch (Microsoft.Data.SqlClient.SqlException ex) when (!context.Response.HasStarted && ex.Number is 50010 or 50011 or 50012)
+    {
+        // 50010 invalid access level, 50011 invalid e-mail, 50012 cannot share with the owner / yourself.
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message, code = ex.Number switch { 50010 => "invalid_access", 50011 => "invalid_email", _ => "cannot_share_owner" } });
+    }
+    catch (KeyNotFoundException ex) when (!context.Response.HasStarted)
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message, code = "not_found" });
+    }
     catch (UnauthorizedAccessException ex) when (!context.Response.HasStarted)
     {
         var isAuthenticated = context.User.Identity?.IsAuthenticated == true;
@@ -171,6 +198,7 @@ app.UseRequestLocalization();
 // No HTTPS redirection: dev goes through the Vite HTTP proxy and production sits behind
 // Cloudflare Tunnel, which already terminates TLS (a redirect would drop Authorization).
 app.UseCors(FrontendCorsPolicy);
+app.UseRateLimiter();
 app.UseAuthentication();
 
 // A valid token is not enough: the account must still be active. Checked against the database (30 s cache) so a block

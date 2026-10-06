@@ -184,3 +184,9 @@ export async function apiJson<T>(input: string, init: RequestInit = {}): Promise
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
+  
+/** HTTP status of a failed apiJson call (`API error 403: ...`), or null. */  
+export function apiErrorStatus(error: unknown): number | null {  
+  const match = (error instanceof Error ? error.message : '').match(/API error (\d{3})/);  
+  return match ? Number(match[1]) : null;  
+}  

@@ -6,6 +6,7 @@ import { InlineNameInput } from './InlineNameInput';
 import { ExplorerSearch } from './ExplorerSearch';
 import { ContextMenu, type ContextMenuState } from './ContextMenu';
 import { MoveDialog } from './MoveDialog';
+import { ShareDialog } from '../sharing/ShareDialog';
 import { EXPLORER_STALE_MS, useExplorerStore, type SectionKey } from './ExplorerProvider';
 
 const DRAG_MIME = 'text/node-ids';
@@ -66,6 +67,7 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
   const [editingId, setEditingId] = useState<string | null>(null);
   /** Items waiting for a destination in the "Move to…" dialog (touch-friendly alternative to drag & drop). */
   const [movingNodes, setMovingNodes] = useState<NodeDto[] | null>(null);
+  const [sharingNode, setSharingNode] = useState<NodeDto | null>(null);
 
   const refreshRoot = useCallback(async () => {
     const children = await nodesApi.getChildren(null);
@@ -401,6 +403,9 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
         case 'newFolder':
           await startCreate(node.id, 'Folder');
           return;
+        case 'share':
+          setSharingNode(node);
+          return;
         default:
           break;
       }
@@ -700,6 +705,9 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
             setMovingNodes(null);
           }}
         />
+      )}
+      {sharingNode && (
+        <ShareDialog nodeId={sharingNode.id} nodeName={sharingNode.name} nodeType={sharingNode.type} onClose={() => setSharingNode(null)} />
       )}
     </div>
   );

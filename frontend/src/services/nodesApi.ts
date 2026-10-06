@@ -19,6 +19,10 @@ export type NodeDto = {
   path?: string | null;
   /** Highest trashed ancestor (or itself); only set for trash listings. */
   deletedRootId?: string | null;
+  /** Effective access of the caller: Owner | Edit | Read (set by getById and the shared-with-me list). */
+  accessLevel?: 'Owner' | 'Edit' | 'Read' | null;
+  /** True when the caller may manage sharing / permanently delete / move out. */
+  canManage?: boolean;
 };
 
 export type NodeSearchResult = {

@@ -49,16 +49,75 @@ public sealed class NodePermission
 {
     public Guid Id { get; init; }
     public Guid NodeId { get; init; }
-    public string GranteeType { get; init; } = string.Empty; // User | Group | PublicLink
+    public string GranteeType { get; init; } = string.Empty; // User | Group
     public Guid? GranteeId { get; init; }
     public string AccessLevel { get; init; } = string.Empty; // Read | Edit
-    public string? ShareToken { get; init; }
     public Guid CreatedBy { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime? ExpiresAt { get; init; }
+    public DateTime? UpdatedAt { get; init; }
     public string? UserDisplayName { get; init; }
     public string? UserEmail { get; init; }
+    public string? UserAvatarUrl { get; init; }
     public string? GroupName { get; init; }
+    /// <summary>Node where the grant lives (an ancestor folder when <see cref="Inherited"/>).</summary>
+    public Guid SourceNodeId { get; init; }
+    public string? SourceNodeName { get; init; }
+    public bool Inherited { get; init; }
+}
+
+public sealed class ShareInvitation
+{
+    public Guid Id { get; init; }
+    public Guid NodeId { get; init; }
+    public string Email { get; init; } = string.Empty;
+    public string AccessLevel { get; init; } = string.Empty;
+    public DateTime CreatedAt { get; init; }
+    public DateTime ExpiresAt { get; init; }
+}
+
+public sealed class ShareLinkInfo
+{
+    public Guid Id { get; init; }
+    public Guid NodeId { get; init; }
+    public string ShareToken { get; init; } = string.Empty;
+    public DateTime CreatedAt { get; init; }
+    public DateTime? ExpiresAt { get; init; }
+    public int ViewCount { get; init; }
+}
+
+public sealed class ShareResult
+{
+    public string Kind { get; init; } = string.Empty; // Permission | Invitation
+    public Guid Id { get; init; }
+    public Guid? UserId { get; init; }
+    public string Email { get; init; } = string.Empty;
+}
+
+public sealed class PublicRoot
+{
+    public Guid NodeId { get; init; }
+    public string NodeName { get; init; } = string.Empty;
+    public string NodeType { get; init; } = "Note";
+    public DateTime? ExpiresAt { get; init; }
+}
+
+public sealed class PublicTreeNode
+{
+    public Guid Id { get; init; }
+    public Guid? ParentId { get; init; }
+    public string Type { get; init; } = "Note";
+    public string Name { get; init; } = string.Empty;
+    public int SortOrder { get; init; }
+}
+
+public sealed class PublicNodeContent
+{
+    public Guid Id { get; init; }
+    public Guid? ParentId { get; init; }
+    public string Type { get; init; } = "Note";
+    public string Name { get; init; } = string.Empty;
+    public byte[]? ContentYjsState { get; init; }
 }
 
 public sealed class AuditLogEntry
