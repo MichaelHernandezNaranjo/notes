@@ -51,10 +51,10 @@ export const nodesApi = {
     apiJson<NodeDto>('/api/nodes', { method: 'POST', body: JSON.stringify({ parentId, type, name }) }),
   rename: (id: string, name: string) =>
     apiJson<NodeDto>(`/api/nodes/${id}/rename`, { method: 'PUT', body: JSON.stringify({ name }) }),
-  move: (id: string, newParentId: string | null, newSortOrder: number | null) =>
+  move: (id: string, newParentId: string | null, newSortOrder: number | null, position?: { beforeNodeId: string | null }) =>
     apiJson<NodeDto>(`/api/nodes/${id}/move`, {
       method: 'PUT',
-      body: JSON.stringify({ newParentId, newSortOrder }),
+      body: JSON.stringify({ newParentId, newSortOrder, reorder: !!position, beforeNodeId: position?.beforeNodeId ?? null }),
     }),
   duplicate: (id: string) => apiJson<NodeDto>(`/api/nodes/${id}/duplicate`, { method: 'POST' }),
   softDelete: (id: string) => apiJson<void>(`/api/nodes/${id}`, { method: 'DELETE' }),

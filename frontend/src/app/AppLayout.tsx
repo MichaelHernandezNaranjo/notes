@@ -1,3 +1,4 @@
+import { BrandLogo } from '../components/BrandLogo';
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { AboutModal } from '../components/AboutModal';
@@ -41,7 +42,7 @@ export function AppLayout() {
             role="img"
             aria-label={t('app.name')}
           >
-            <span className="h-6 w-6 shrink-0 rounded bg-gradient-to-br from-accent-emerald via-accent-blue to-accent-purple" />
+            <BrandLogo className="h-8 w-8 shrink-0" />
           </div>
           <div className="flex flex-1 flex-col items-center gap-1 px-2">
             {navItems.map((item) => (

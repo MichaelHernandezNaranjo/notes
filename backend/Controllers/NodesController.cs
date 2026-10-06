@@ -63,7 +63,7 @@ public sealed class NodesController : ControllerBase
     [HttpPut("{id:guid}/move")]
     public async Task<ActionResult<NodeDto>> Move(Guid id, [FromBody] MoveNodeRequest request)
     {
-        var node = await _nodeService.MoveAsync(User.GetUserId(), id, request.NewParentId, request.NewSortOrder);
+        var node = await _nodeService.MoveAsync(User.GetUserId(), id, request.NewParentId, request.NewSortOrder, request.Reorder, request.BeforeNodeId);
         return node is null ? NotFound() : Ok(node);
     }
 

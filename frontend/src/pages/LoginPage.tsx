@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { BrandLogo } from '../components/BrandLogo';
 import { LegalModal } from '../components/LegalModal';
 import { GoogleLoginButton } from '../features/auth/GoogleLoginButton';
 import { useI18n } from '../i18n/I18nProvider';
@@ -7,20 +8,6 @@ import { CONTACT_EMAIL, TERMS_VERSION, type LegalKind } from '../legal/legalText
 import { acceptTerms } from '../features/auth/termsAcceptance';
 
 const POINTS = ['point1', 'point2', 'point3'] as const;
-
-function LogoMark({ className = '' }: { className?: string }) {
-  return (
-    <div
-      className={`flex items-center justify-center rounded-xl bg-gradient-to-br from-accent-emerald via-accent-blue to-accent-purple shadow-sm ${className}`}
-      aria-hidden="true"
-    >
-      <svg width="55%" height="55%" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
-        <path d="M14 3v5h5M9 13h6M9 17h4" />
-      </svg>
-    </div>
-  );
-}
 
 export function LoginPage() {
   const { t, language, setLanguage } = useI18n();
@@ -45,7 +32,7 @@ export function LoginPage() {
         <div className="pointer-events-none absolute -right-24 -top-24 h-80 w-80 rounded-full bg-white/10 blur-2xl" />
         <div className="pointer-events-none absolute -bottom-32 -left-16 h-96 w-96 rounded-full bg-black/10 blur-2xl" />
         <div className="relative flex items-center gap-3">
-          <LogoMark className="h-10 w-10 bg-white/20 from-transparent via-transparent to-transparent" />
+          <BrandLogo translucent className="h-10 w-10" />
           <span className="text-lg font-semibold tracking-tight">Notes</span>
         </div>
         <div className="relative max-w-md">
@@ -76,7 +63,7 @@ export function LoginPage() {
         </button>
 
         <div className="w-full max-w-sm">
-          <LogoMark className="mb-6 h-14 w-14 lg:hidden" />
+          <BrandLogo className="mb-6 h-14 w-14 lg:hidden" />
           <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">{t('app.name')}</h1>
           <p className="mt-1 text-sm text-neutral-600">{t('login.subtitle')}</p>
           <p className="mt-3 text-sm leading-relaxed text-neutral-700">{t('login.about')}</p>

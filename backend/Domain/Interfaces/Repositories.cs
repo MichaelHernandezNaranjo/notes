@@ -32,7 +32,7 @@ public interface INodeRepository
 {
     Task<Node> CreateAsync(Guid? parentId, Guid ownerId, string type, string name);
     Task<Node?> RenameAsync(Guid nodeId, string name);
-    Task<Node?> MoveAsync(Guid nodeId, Guid? newParentId, int? newSortOrder);
+    Task<Node?> MoveAsync(Guid nodeId, Guid? newParentId, int? newSortOrder, bool reorder = false, Guid? beforeNodeId = null);
     Task<Node?> DuplicateAsync(Guid nodeId, Guid ownerId);
     Task SoftDeleteAsync(Guid nodeId);
     Task RestoreAsync(Guid nodeId);

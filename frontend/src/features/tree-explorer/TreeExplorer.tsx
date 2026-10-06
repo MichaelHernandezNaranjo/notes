@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { nodesApi, type NodeDto, type NodeSearchResult } from '../../services/nodesApi';
 import { useI18n } from '../../i18n/I18nProvider';
-import { TreeNode, type DraftNode } from './TreeNode';
+import { TreeNode, type DraftNode, type DropPosition } from './TreeNode';
 import { InlineNameInput } from './InlineNameInput';
 import { ExplorerSearch } from './ExplorerSearch';
 import { ContextMenu, type ContextMenuState } from './ContextMenu';
@@ -338,6 +338,44 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
     [nodeById, reloadParents, t],
   );
 
+  /** Drop on a row: before / after it (reorder, possibly into another folder) or inside it when it is a folder. */
+  const handleDropAt = useCallback(
+    async (ids: string[], target: NodeDto, position: DropPosition) => {
+      const parentId = position === 'inside' ? target.id : target.parentId;
+      const isBlocked = (id: string) => {
+        let cursor: string | null = parentId;
+        while (cursor) {
+          if (cursor === id) return true;
+          cursor = nodeById.get(cursor)?.parentId ?? null;
+        }
+        return false;
+      };
+      const moving = ids.filter((id) => id !== target.id && !isBlocked(id) && nodeById.has(id));
+      if (moving.length === 0) return;
+
+      // Anchor: the sibling the moved items go right before (null = at the end).
+      const siblings = (parentId === null ? rootNodes : (childrenByParent[parentId] ?? [])).filter((n) => !moving.includes(n.id));
+      let beforeId: string | null = null;
+      if (position === 'before') beforeId = target.id;
+      else if (position === 'after') beforeId = siblings[siblings.findIndex((n) => n.id === target.id) + 1]?.id ?? null;
+
+      const oldParents = moving.map((id) => nodeById.get(id)?.parentId ?? null);
+      let failed = false;
+      for (const id of moving) {
+        try {
+          await nodesApi.move(id, parentId, null, { beforeNodeId: beforeId });
+        } catch {
+          failed = true;
+        }
+      }
+      if (failed) window.alert(t('tree.moveConflict'));
+
+      if (position === 'inside') setExpanded((prev) => new Set(prev).add(target.id));
+      await reloadParents([...oldParents, parentId]);
+    },
+    [nodeById, rootNodes, childrenByParent, reloadParents, t],
+  );
+
   const readDraggedIds = (e: React.DragEvent): string[] => {
     try {
       const parsed = JSON.parse(e.dataTransfer.getData(DRAG_MIME) || '[]');
@@ -524,7 +562,7 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
   const searching = searchQuery.trim().length > 0;
 
   /** One tree row (recursive) wired to the shared selection / drag & drop / inline-edit handlers. */
-  const renderNode = (node: NodeDto) => (
+  const renderNode = (node: NodeDto, reorderable = true) => (
     <TreeNode
       key={node.id}
       node={node}
@@ -535,10 +573,11 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
       selectedIds={selectedIds}
       onSelect={handleSelect}
       onDragStartNode={handleDragStartNode}
-      onDropOnFolder={(e, targetId) => {
+      onDropAt={(e, target, position) => {
         const ids = readDraggedIds(e);
-        if (ids.length > 0) void handleDrop(ids, targetId);
+        if (ids.length > 0) void handleDropAt(ids, target, position);
       }}
+      reorderable={reorderable}
       onContextMenu={(e, targetNode) => {
         e.preventDefault();
         e.stopPropagation();
@@ -592,7 +631,7 @@ export function TreeExplorer({ onOpenNote, activeNodeId, onRenamed, refreshToken
                 )}
                 {section.key === 'shared' ? (
                   // Shared folders are expandable like the own tree (children load through the access-checked API).
-                  <div role="tree">{section.items.map((node) => renderNode(node))}</div>
+                  <div role="tree">{section.items.map((node) => renderNode(node, false))}</div>
                 ) : (
                   (section.key === 'trash' ? orderTrash(section.items) : section.items.map((n) => ({ node: n, nested: false }))).map(
                     ({ node, nested }) => (

@@ -8,7 +8,7 @@ public interface INodeService
 {
     Task<NodeDto> CreateAsync(Guid userId, CreateNodeRequest request);
     Task<NodeDto?> RenameAsync(Guid userId, Guid nodeId, string name);
-    Task<NodeDto?> MoveAsync(Guid userId, Guid nodeId, Guid? newParentId, int? newSortOrder);
+    Task<NodeDto?> MoveAsync(Guid userId, Guid nodeId, Guid? newParentId, int? newSortOrder, bool reorder = false, Guid? beforeNodeId = null);
     Task<NodeDto?> DuplicateAsync(Guid userId, Guid nodeId);
     Task SoftDeleteAsync(Guid userId, Guid nodeId);
     Task RestoreAsync(Guid userId, Guid nodeId);
@@ -60,7 +60,7 @@ public sealed class NodeService : INodeService
         return node is null ? null : Map(node);
     }
 
-    public async Task<NodeDto?> MoveAsync(Guid userId, Guid nodeId, Guid? newParentId, int? newSortOrder)
+    public async Task<NodeDto?> MoveAsync(Guid userId, Guid nodeId, Guid? newParentId, int? newSortOrder, bool reorder = false, Guid? beforeNodeId = null)
     {
         var access = await EnsureAccessAsync(userId, nodeId, requireEdit: true);
         await EnsureNotTrashedAsync(nodeId);
@@ -77,7 +77,7 @@ public sealed class NodeService : INodeService
             await EnsureAccessAsync(userId, newParentId.Value, requireEdit: true);
         }
 
-        var node = await _nodeRepository.MoveAsync(nodeId, newParentId, newSortOrder);
+        var node = await _nodeRepository.MoveAsync(nodeId, newParentId, newSortOrder, reorder, beforeNodeId);
         await _auditRepository.InsertAsync(userId, nodeId, "NodeMoved", null);
         return node is null ? null : Map(node);
     }

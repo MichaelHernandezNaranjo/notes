@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useI18n } from '../i18n/I18nProvider';
 import { CONTACT_EMAIL } from '../legal/legalTexts';
 import { LegalModal } from './LegalModal';
+import { BrandLogo } from './BrandLogo';
 import { Modal } from './Modal';
 import type { LegalKind } from '../legal/legalTexts';
 
@@ -16,7 +17,7 @@ const FEATURES: Array<{ icon: string; key: string }> = [
   { icon: '📤', key: 'export' },
 ];
 
-const STACK = ['React', 'TypeScript', 'TailwindCSS', 'BlockNote', 'Yjs', '.NET 10', 'SignalR', 'SQL Server'];
+
 
 /** "About" dialog: what the product does, how it is built, version, contact and legal links. */
 export function AboutModal({ onClose }: { onClose: () => void }) {
@@ -28,7 +29,7 @@ export function AboutModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal title={t('about.title')} onClose={onClose} size="lg">
       <div className="flex items-center gap-4">
-        <div className="h-14 w-14 shrink-0 rounded-2xl bg-gradient-to-br from-accent-emerald via-accent-blue to-accent-purple shadow-sm" />
+        <BrandLogo className="h-14 w-14 shrink-0" />
         <div className="min-w-0">
           <h3 className="text-xl font-semibold text-neutral-900">Notes</h3>
           <p className="text-sm text-neutral-600">{t('about.tagline')}</p>
@@ -51,15 +52,6 @@ export function AboutModal({ onClose }: { onClose: () => void }) {
               <p className="text-sm font-medium text-neutral-900">{t(`about.f.${f.key}.title`)}</p>
               <p className="text-xs leading-relaxed text-neutral-600">{t(`about.f.${f.key}.text`)}</p>
             </div>
-          </li>
-        ))}
-      </ul>
-
-      <h4 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-neutral-500">{t('about.stack')}</h4>
-      <ul className="flex flex-wrap gap-1.5">
-        {STACK.map((s) => (
-          <li key={s} className="rounded-md border border-border-subtle bg-bg-elevated px-2 py-0.5 text-xs text-neutral-700">
-            {s}
           </li>
         ))}
       </ul>

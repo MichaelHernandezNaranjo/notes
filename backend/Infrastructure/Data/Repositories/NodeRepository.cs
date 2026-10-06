@@ -29,12 +29,12 @@ public sealed class NodeRepository : INodeRepository
             commandType: CommandType.StoredProcedure);
     }
 
-    public async Task<Node?> MoveAsync(Guid nodeId, Guid? newParentId, int? newSortOrder)
+    public async Task<Node?> MoveAsync(Guid nodeId, Guid? newParentId, int? newSortOrder, bool reorder = false, Guid? beforeNodeId = null)
     {
         using var conn = _context.CreateConnection();
         return await conn.QuerySingleOrDefaultAsync<Node>(
             "sp_Node_Move",
-            new { NodeId = nodeId, NewParentId = newParentId, NewSortOrder = newSortOrder },
+            new { NodeId = nodeId, NewParentId = newParentId, NewSortOrder = newSortOrder, Reorder = reorder, BeforeNodeId = beforeNodeId },
             commandType: CommandType.StoredProcedure);
     }
 

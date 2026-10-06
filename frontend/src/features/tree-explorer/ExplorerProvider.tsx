@@ -43,7 +43,7 @@ export function ExplorerProvider({ children }: { children: ReactNode }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [anchorId, setAnchorId] = useState<string | null>(null);
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
-    recent: true,
+    recent: false,
     favorites: true,
     shared: true,
     trash: false,

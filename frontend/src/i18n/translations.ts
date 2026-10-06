@@ -147,7 +147,6 @@ export const translations = {
       description:
         'Notes reúne en un solo espacio tus notas, carpetas e imágenes y te permite editarlas junto a otras personas al mismo tiempo, con control de permisos y sin perder el orden.',
       features: 'Qué puedes hacer',
-      stack: 'Tecnología',
       rights: 'Todos los derechos reservados.',
       contact: 'Contacto',
       f: {
@@ -479,7 +478,6 @@ export const translations = {
       description:
         'Notes brings your notes, folders and images into a single space and lets you edit them together with other people at the same time, with permission control and without losing order.',
       features: 'What you can do',
-      stack: 'Technology',
       rights: 'All rights reserved.',
       contact: 'Contact',
       f: {

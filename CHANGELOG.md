@@ -4,6 +4,13 @@ La versión que se muestra en «Acerca de» sale de `frontend/package.json` (ún
 Se sube antes de cada push y se añade aquí una entrada. Esquema semver: parche = correcciones y ajustes,
 menor = funcionalidades nuevas, mayor = cambios incompatibles.
 
+## 1.3.0 — 2026-10-06
+
+- **Ordenar con arrastrar y soltar en el árbol:** suelta una nota o carpeta entre dos elementos para colocarla ahí (línea azul), o sobre una carpeta para meterla dentro. Funciona con selección múltiple y entre carpetas. El orden se guarda en el servidor (`sp_Node_Move` renumera los hermanos). «Compartido conmigo» no se reordena.
+- **Logo:** toda la app usa ahora el mismo diseño del favicon (componente `BrandLogo`).
+- «Recientes» aparece colapsado por defecto.
+- «Acerca de»: se quita la sección de tecnologías.
+
 ## 1.2.0 — 2026-10-06
 
 - **Compartir rehecho desde cero** (los enlaces anteriores nunca llegaron a funcionar y se descartan):

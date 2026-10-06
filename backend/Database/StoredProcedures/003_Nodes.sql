@@ -86,7 +86,10 @@ GO
 CREATE OR ALTER PROCEDURE dbo.sp_Node_Move
     @NodeId      UNIQUEIDENTIFIER,
     @NewParentId UNIQUEIDENTIFIER = NULL,
-    @NewSortOrder INT = NULL
+    @NewSortOrder INT = NULL,
+    -- Reorder mode: place the node among its new siblings, right before @BeforeNodeId (NULL = at the end).
+    @Reorder      BIT = 0,
+    @BeforeNodeId UNIQUEIDENTIFIER = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -115,6 +118,28 @@ BEGIN
     UPDATE dbo.Nodes
     SET ParentId = @NewParentId, SortOrder = @Sort, UpdatedAt = SYSUTCDATETIME()
     WHERE Id = @NodeId;
+
+    IF @Reorder = 1
+    BEGIN
+        DECLARE @Parent UNIQUEIDENTIFIER = ISNULL(@NewParentId, '00000000-0000-0000-0000-000000000000');
+        -- 1) space the other siblings out (2,4,6...) in their current order, 2) put the node in a gap, 3) renumber 1..n.
+        ;WITH S AS (
+            SELECT Id, ROW_NUMBER() OVER (ORDER BY SortOrder, Name) * 2 AS Rn
+            FROM dbo.Nodes WHERE IsDeleted = 0 AND Id <> @NodeId AND ISNULL(ParentId, '00000000-0000-0000-0000-000000000000') = @Parent)
+        UPDATE n SET SortOrder = S.Rn FROM dbo.Nodes n INNER JOIN S ON S.Id = n.Id;
+
+        UPDATE dbo.Nodes SET SortOrder = ISNULL(
+            (SELECT SortOrder - 1 FROM dbo.Nodes WHERE Id = @BeforeNodeId AND IsDeleted = 0
+                AND ISNULL(ParentId, '00000000-0000-0000-0000-000000000000') = @Parent),
+            (SELECT ISNULL(MAX(SortOrder), 0) + 2 FROM dbo.Nodes WHERE IsDeleted = 0 AND Id <> @NodeId
+                AND ISNULL(ParentId, '00000000-0000-0000-0000-000000000000') = @Parent))
+        WHERE Id = @NodeId;
+
+        ;WITH S AS (
+            SELECT Id, ROW_NUMBER() OVER (ORDER BY SortOrder) AS Rn
+            FROM dbo.Nodes WHERE IsDeleted = 0 AND ISNULL(ParentId, '00000000-0000-0000-0000-000000000000') = @Parent)
+        UPDATE n SET SortOrder = S.Rn FROM dbo.Nodes n INNER JOIN S ON S.Id = n.Id;
+    END
 
     COMMIT TRAN;
     END TRY

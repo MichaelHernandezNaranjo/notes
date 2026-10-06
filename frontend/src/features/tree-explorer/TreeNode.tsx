@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import type { NodeDto } from '../../services/nodesApi';
 import { useI18n } from '../../i18n/I18nProvider';
 import { InlineNameInput } from './InlineNameInput';
+
+export type DropPosition = 'before' | 'after' | 'inside';
 
 export type DraftNode = { parentId: string | null; type: 'Folder' | 'Note' };
 
@@ -13,7 +16,9 @@ type TreeNodeProps = {
   selectedIds: Set<string>;
   onSelect: (e: React.MouseEvent, node: NodeDto) => void;
   onDragStartNode: (e: React.DragEvent, node: NodeDto) => void;
-  onDropOnFolder: (e: React.DragEvent, targetId: string) => void;
+  onDropAt: (e: React.DragEvent, target: NodeDto, position: DropPosition) => void;
+  /** False in read-only areas (shared with me): rows only accept drops into folders. */
+  reorderable: boolean;
   onContextMenu: (e: React.MouseEvent, node: NodeDto) => void;
   childrenByParent: Record<string, NodeDto[]>;
   expanded: Set<string>;
@@ -37,7 +42,8 @@ export function TreeNode(props: TreeNodeProps) {
     selectedIds,
     onSelect,
     onDragStartNode,
-    onDropOnFolder,
+    onDropAt,
+    reorderable,
     onContextMenu,
     childrenByParent,
     expanded,
@@ -54,6 +60,16 @@ export function TreeNode(props: TreeNodeProps) {
   const isSelected = selectedIds.has(node.id);
   const isActive = activeNodeId === node.id;
   const isEditing = editingId === node.id;
+  const [dropPos, setDropPos] = useState<DropPosition | null>(null);
+
+  /** Top/bottom edge of a row = place before/after it; the middle of a folder = drop inside it. */
+  const positionFor = (e: React.DragEvent<HTMLElement>): DropPosition | null => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = (e.clientY - rect.top) / Math.max(rect.height, 1);
+    if (!reorderable) return isFolder ? 'inside' : null;
+    if (isFolder) return ratio < 0.25 ? 'before' : ratio > 0.75 && !isExpanded ? 'after' : 'inside';
+    return ratio < 0.5 ? 'before' : 'after';
+  };
 
   return (
     <div>
@@ -66,21 +82,33 @@ export function TreeNode(props: TreeNodeProps) {
         draggable={!isEditing}
         onDragStart={(e) => onDragStartNode(e, node)}
         onDragOver={(e) => {
-          if (isFolder) e.preventDefault();
+          const pos = positionFor(e);
+          if (!pos) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (pos !== dropPos) setDropPos(pos);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropPos(null);
         }}
         onDrop={(e) => {
-          if (!isFolder) return;
+          const pos = positionFor(e);
+          setDropPos(null);
+          if (!pos) return;
           e.preventDefault();
           e.stopPropagation();
-          onDropOnFolder(e, node.id);
+          onDropAt(e, node, pos);
         }}
+        onDragEnd={() => setDropPos(null)}
         onContextMenu={(e) => onContextMenu(e, node)}
         onClick={(e) => {
           e.stopPropagation();
           if (!isEditing) onSelect(e, node);
         }}
         style={{ paddingLeft: 12 + depth * 16 }}
-        className={`flex cursor-pointer select-none items-center gap-1.5 py-1 pr-2 pointer-coarse:min-h-11 ${
+        className={`relative flex cursor-pointer select-none items-center gap-1.5 py-1 pr-2 pointer-coarse:min-h-11 ${
+          dropPos === 'inside' ? 'bg-accent-blue/20 ring-1 ring-inset ring-accent-blue' : ''
+        } ${
           isSelected
             ? 'bg-accent-blue/15 text-neutral-900'
             : isActive
@@ -88,6 +116,13 @@ export function TreeNode(props: TreeNodeProps) {
               : 'hover:bg-black/5'
         }`}
       >
+        {(dropPos === 'before' || dropPos === 'after') && (
+          <span
+            aria-hidden="true"
+            style={{ left: 12 + depth * 16 }}
+            className={`pointer-events-none absolute right-1 h-0.5 rounded bg-accent-blue ${dropPos === 'before' ? 'top-0' : 'bottom-0'}`}
+          />
+        )}
         {isFolder ? <span className="w-3 text-xs">{isExpanded ? '▾' : '▸'}</span> : <span className="w-3" />}
         <span>{isFolder ? '📁' : '📝'}</span>
         {isEditing ? (

@@ -8,7 +8,7 @@ public sealed record UserDto(Guid Id, string Email, string DisplayName, string? 
 
 public sealed record CreateNodeRequest(Guid? ParentId, string Type, string Name);
 public sealed record RenameNodeRequest(string Name);
-public sealed record MoveNodeRequest(Guid? NewParentId, int? NewSortOrder);
+public sealed record MoveNodeRequest(Guid? NewParentId, int? NewSortOrder, bool Reorder = false, Guid? BeforeNodeId = null);
 
 public sealed record NodeDto(
     Guid Id, Guid? ParentId, Guid OwnerId, string Type, string Name,

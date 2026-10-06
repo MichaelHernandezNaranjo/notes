@@ -1,3 +1,4 @@
+import { BrandLogo } from '../components/BrandLogo';
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useI18n } from '../i18n/I18nProvider';
@@ -26,7 +27,7 @@ export function LegalPage({ kind }: { kind: LegalKind }) {
       <header className="border-b border-border-subtle bg-bg-base">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
           <Link to="/login" className="flex items-center gap-2 text-sm font-semibold text-neutral-900">
-            <span className="h-7 w-7 rounded-lg bg-gradient-to-br from-accent-emerald via-accent-blue to-accent-purple" aria-hidden="true" />
+            <BrandLogo className="h-7 w-7" />
             Notes
           </Link>
           <button
