@@ -65,13 +65,15 @@ builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IUserStatusService, UserStatusService>();
+builder.Services.AddScoped<INoteContentService, NoteContentService>();
 
 // ---------- Realtime ----------
 builder.Services.AddSingleton<IYjsDocumentStore, YjsDocumentStore>();
 builder.Services.AddSingleton<IPresenceTracker, PresenceTracker>();
 builder.Services.AddSingleton<INoteConnectionTracker, NoteConnectionTracker>();
 builder.Services.AddSingleton<INoteAccessEnforcer, NoteAccessEnforcer>();
-builder.Services.AddSignalR();
+// Only live deltas and awareness travel over the socket now (full snapshots go over HTTP), so a modest cap is plenty and bounds abuse.
+builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 4 * 1024 * 1024);
 
 // Anonymous public-link endpoints: per-IP throttle so tokens cannot be brute-forced or the viewer scraped.
 builder.Services.AddRateLimiter(options =>
@@ -169,6 +171,11 @@ app.Use(async (context, next) =>
         // 50001 = duplicate sibling name, 50002 = empty name (raised by the Node stored procedures).
         context.Response.StatusCode = ex.Number == 50001 ? StatusCodes.Status409Conflict : StatusCodes.Status400BadRequest;
         await context.Response.WriteAsJsonAsync(new { error = ex.Message, code = ex.Number == 50001 ? "duplicate_name" : "empty_name" });
+    }
+    catch (NoteTooLargeException ex) when (!context.Response.HasStarted)
+    {
+        context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message, code = "note_too_large", maxBytes = ex.MaxBytes });
     }
     catch (SharingException ex) when (!context.Response.HasStarted)
     {

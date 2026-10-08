@@ -30,9 +30,11 @@ public sealed class NodeService : INodeService
     private readonly IPermissionRepository _permissionRepository;
     private readonly IAuditRepository _auditRepository;
     private readonly IFileService _fileService;
+    private readonly INoteContentService _noteContent;
 
-    public NodeService(INodeRepository nodeRepository, IPermissionRepository permissionRepository, IAuditRepository auditRepository, IFileService fileService)
+    public NodeService(INodeRepository nodeRepository, IPermissionRepository permissionRepository, IAuditRepository auditRepository, IFileService fileService, INoteContentService noteContent)
     {
+        _noteContent = noteContent;
         _nodeRepository = nodeRepository;
         _permissionRepository = permissionRepository;
         _auditRepository = auditRepository;
@@ -178,7 +180,7 @@ public sealed class NodeService : INodeService
             await _nodeRepository.TouchRecentAsync(userId, nodeId);
         }
 
-        return Map(node, access);
+        return Map(node, access) with { MaxNoteBytes = _noteContent.MaxNoteBytes };
     }
 
     private async Task EnsureNotTrashedAsync(Guid nodeId)
@@ -214,5 +216,5 @@ public sealed class NodeService : INodeService
     private static NodeDto Map(Node n, string? access = null) => new(
         n.Id, n.ParentId, n.OwnerId, n.Type, n.Name, n.ContentJson,
         n.SortOrder, n.IsDeleted, n.DeletedAt, n.CreatedAt, n.UpdatedAt, n.IsFavorite, n.Path, n.DeletedRootId,
-        access, access == "Owner");
+        access, access == "Owner", n.ContentSizeBytes);
 }

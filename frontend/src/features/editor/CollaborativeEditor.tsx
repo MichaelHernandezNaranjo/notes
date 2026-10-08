@@ -10,7 +10,8 @@ import { useI18n } from '../../i18n/I18nProvider';
 import { exportNoteAsImage, exportNoteAsPdf } from './exportNote';
 import { EditorToolbar } from './EditorToolbar';
 import { createFileResolver, uploadNoteImage } from './noteFiles';
-import { YjsSignalRProvider, type PresenceUser } from './YjsSignalRProvider';
+import { YjsSignalRProvider, type PresenceUser, type SaveState } from './YjsSignalRProvider';
+import { formatBytes } from '../../utils/format';
 
 const LOAD_TIMEOUT_MS = 10000;
 const COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444'];
@@ -37,6 +38,9 @@ export type CollaborativeEditorProps = {
   canManage?: boolean;
   /** Live access change pushed by the server (null = access lost). */
   onAccessChanged?: (access: string | null) => void;
+  /** Stored size of the note and the per-note limit, in bytes (from the server). */
+  sizeBytes?: number;
+  maxBytes?: number;
 };
 
 /**
@@ -45,13 +49,20 @@ export type CollaborativeEditorProps = {
  * concurrent edits, so multiple users editing the same note see changes
  * merge instantly and without conflicts.
  */
-export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed = false, trashPath, onRestore, readOnly = false, canManage = true, onAccessChanged }: CollaborativeEditorProps) {
+export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed = false, trashPath, onRestore, readOnly = false, canManage = true, onAccessChanged, sizeBytes: initialSize, maxBytes: initialMax }: CollaborativeEditorProps) {
   const locked = trashed || readOnly;
   const { user } = useAuth();
   const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const [presence, setPresence] = useState<PresenceUser[]>([]);
-  const [saveState, setSaveState] = useState<'saved' | 'saving'>('saved');
+  const [saveState, setSaveState] = useState<SaveState>('saved');
+  const [size, setSize] = useState<{ bytes: number; max?: number }>({ bytes: initialSize ?? 0, max: initialMax || undefined });
+  const [tooLarge, setTooLarge] = useState(false);
+  const [dismissedLevel, setDismissedLevel] = useState<string | null>(null);
+  // The node (size and limit) arrives after the editor mounts.
+  useEffect(() => {
+    if (initialMax) setSize({ bytes: initialSize ?? 0, max: initialMax });
+  }, [initialSize, initialMax]);
   const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [attempt, setAttempt] = useState(0);
   const [restoring, setRestoring] = useState(false);
@@ -103,6 +114,18 @@ export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed
     provider.onPresenceUpdate(setPresence);
     provider.onSynced(() => setLoadState('ready'));
     provider.onQuotaExceeded(() => setQuotaReached(true));
+    provider.onSaveState((s) => {
+      setSaveState(s);
+      if (s === 'saved') setTooLarge(false);
+    });
+    provider.onSize((bytes, max) => {
+      setSize({ bytes, max: max || undefined });
+      setTooLarge(false);
+    });
+    provider.onNoteTooLarge((max) => {
+      setTooLarge(true);
+      if (max) setSize((prev) => ({ bytes: prev.bytes, max }));
+    });
     provider.onAccessChanged((access) => onAccessChangedRef.current?.(access));
     if (provider.isSynced) setLoadState('ready');
 
@@ -115,19 +138,25 @@ export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed
       setLoadState('error');
     });
 
-    const onUpdate = () => {
-      setSaveState('saving');
-      const timer = setTimeout(() => setSaveState('saved'), 800);
-      return () => clearTimeout(timer);
+    // Closing the tab with edits the server has not confirmed would lose them: ask first.
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (provider.hasUnsavedChanges) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
     };
-    ydocRef.current.on('update', onUpdate);
+    window.addEventListener('beforeunload', onBeforeUnload);
 
     return () => {
       clearTimeout(timeout);
-      ydocRef.current.off('update', onUpdate);
+      window.removeEventListener('beforeunload', onBeforeUnload);
       provider.disconnect().catch(console.error);
     };
   }, [nodeId, attempt]);
+
+  // Size warnings: 80 % (dismissible), 95 % (fixed), at the limit or refused by the server (fixed, changes are not being saved).
+  const ratio = size.max ? size.bytes / size.max : 0;
+  const sizeLevel: 'warn' | 'critical' | 'limit' | null = tooLarge || ratio >= 1 ? 'limit' : ratio >= 0.95 ? 'critical' : ratio >= 0.8 ? 'warn' : null;
 
   const retry = () => {
     setLoadState('loading');
@@ -160,6 +189,25 @@ export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed
               className="shrink-0 rounded-md bg-amber-600 px-3 py-1 font-medium text-white hover:bg-amber-700 disabled:opacity-60"
             >
               {t('tree.restore')}
+            </button>
+          )}
+        </div>
+      )}
+      {sizeLevel && !(sizeLevel === 'warn' && dismissedLevel === 'warn') && (
+        <div
+          role={sizeLevel === 'warn' ? 'status' : 'alert'}
+          className={`flex shrink-0 items-center justify-between gap-3 border-b px-3 py-2 text-sm sm:px-4 ${
+            sizeLevel === 'warn' ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-red-300 bg-red-50 text-red-800'
+          }`}
+        >
+          <span className="min-w-0">
+            {t(`editor.size.${sizeLevel}`)
+              .replace('{used}', formatBytes(size.bytes))
+              .replace('{max}', formatBytes(size.max ?? 0, 0))}
+          </span>
+          {sizeLevel === 'warn' && (
+            <button type="button" onClick={() => setDismissedLevel('warn')} className="touch-target shrink-0 underline">
+              {t('common.close')}
             </button>
           )}
         </div>
@@ -198,6 +246,7 @@ export function CollaborativeEditor({ nodeId, noteName, onShare, onBack, trashed
         readOnly={readOnly && !trashed}
         title={noteName || t('editor.untitled')}
         saveState={saveState}
+        sizeLabel={size.max ? t('editor.size.label').replace('{used}', formatBytes(size.bytes)).replace('{max}', formatBytes(size.max, 0)) : undefined}
         presence={presence}
         onShare={onShare}
         onBack={onBack}

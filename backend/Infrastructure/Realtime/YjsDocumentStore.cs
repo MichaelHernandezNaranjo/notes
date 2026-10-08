@@ -54,7 +54,12 @@ public sealed class YjsDocumentStore : IYjsDocumentStore
         lock (doc.Lock)
         {
             doc.DebounceTimer?.Dispose();
-            doc.DebounceTimer = new Timer(async _ => await FlushNowAsync(nodeId, repository), null, debounce, Timeout.InfiniteTimeSpan);
+            doc.DebounceTimer = new Timer(async _ =>
+            {
+                // An exception escaping an async timer callback would take the whole process down: log and carry on.
+                try { await FlushNowAsync(nodeId, repository); }
+                catch (Exception ex) { Console.Error.WriteLine($"[YjsDocumentStore] Flush of note {nodeId} failed: {ex}"); }
+            }, null, debounce, Timeout.InfiniteTimeSpan);
         }
     }
 

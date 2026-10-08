@@ -17,22 +17,20 @@ namespace NotesApp.Api.Hubs;
 [Authorize]
 public sealed class CollaborativeNoteHub : Hub
 {
-    private static readonly TimeSpan PersistDebounce = TimeSpan.FromSeconds(3);
-
     private readonly IYjsDocumentStore _documentStore;
     private readonly INodeRepository _nodeRepository;
     private readonly IPermissionRepository _permissionRepository;
-    private readonly IAdminRepository _adminRepository;
+    private readonly INoteContentService _content;
     private readonly IUserStatusService _userStatus;
     private readonly INoteConnectionTracker _connections;
 
     public CollaborativeNoteHub(IYjsDocumentStore documentStore, INodeRepository nodeRepository, IPermissionRepository permissionRepository,
-        IAdminRepository adminRepository, IUserStatusService userStatus, INoteConnectionTracker connections)
+        INoteContentService content, IUserStatusService userStatus, INoteConnectionTracker connections)
     {
         _documentStore = documentStore;
         _nodeRepository = nodeRepository;
         _permissionRepository = permissionRepository;
-        _adminRepository = adminRepository;
+        _content = content;
         _userStatus = userStatus;
         _connections = connections;
     }
@@ -117,23 +115,22 @@ public sealed class CollaborativeNoteHub : Hub
         await Clients.OthersInGroup(NoteGroup(nodeId)).SendAsync("ReceiveYjsUpdate", nodeId, update);
     }
 
-    /// <summary>Stores the full Yjs document state sent by a client (debounced write to SQL Server).</summary>
+    /// <summary>Legacy path (older cached clients): the current client saves over HTTP (PUT /api/nodes/{id}/content). Same checks.</summary>
     public async Task SaveSnapshot(Guid nodeId, byte[] state)
     {
         await EnsureEditableAsync(nodeId);
-
-        // The size is charged to the note's owner. Growth past their quota is refused; shrinking is always allowed.
         try
         {
-            await _adminRepository.AssertContentAllowanceAsync(nodeId, state.Length);
+            await _content.SaveAsync(UserId, nodeId, state);
+        }
+        catch (NoteTooLargeException)
+        {
+            throw new HubException("note_too_large");
         }
         catch (Microsoft.Data.SqlClient.SqlException ex) when (ex.Number == 50003)
         {
             throw new HubException("quota_exceeded");
         }
-
-        _documentStore.ApplyUpdate(nodeId, state);
-        _documentStore.ScheduleFlush(nodeId, _nodeRepository, PersistDebounce);
     }
 
     /// <summary>Broadcasts awareness (cursor position, selection, user color) to peers.</summary>

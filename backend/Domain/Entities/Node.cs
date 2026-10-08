@@ -15,6 +15,8 @@ public sealed class Node
     public DateTime CreatedAt { get; init; }
     public DateTime UpdatedAt { get; init; }
     public bool IsFavorite { get; init; }
+    /// <summary>Stored size of the note (text + document state), in bytes.</summary>
+    public long ContentSizeBytes { get; init; }
     /// <summary>Ancestor names (root first), only populated by the trash listing.</summary>
     public string? Path { get; init; }
     /// <summary>Highest trashed ancestor (or itself), only populated by the trash listing.</summary>

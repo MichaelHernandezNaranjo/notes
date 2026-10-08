@@ -4,6 +4,15 @@ La versión que se muestra en «Acerca de» sale de `frontend/package.json` (ún
 Se sube antes de cada push y se añade aquí una entrada. Esquema semver: parche = correcciones y ajustes,
 menor = funcionalidades nuevas, mayor = cambios incompatibles.
 
+## 1.3.2 — 2026-10-08
+
+- **Corrige el error al guardar notas grandes** («Connection closed with an error» y el cambio no se guardaba): el guardado completo viajaba por el WebSocket, que corta la conexión por encima de 32 KB. Ahora se guarda por HTTP (`PUT /api/nodes/{id}/content`).
+- **Tamaño máximo por nota: 64 MB** para todos, configurable con `MAX_NOTE_BYTES` (`Notes__MaxNoteBytes`). Quien ya superó su cuota de espacio no puede seguir guardando (solo leer y borrar, como hasta ahora).
+- **Avisos de tamaño en el editor:** aviso al 80 % (se puede cerrar), al 95 % (fijo) y al llegar al límite («Tus últimos cambios no se guardaron»). El tamaño se ve al pasar el cursor por el estado de guardado.
+- **El estado de guardado ya no miente:** muestra «Sin guardar» si el servidor no responde o rechaza el cambio, reintenta solo con espera creciente y vuelve a «Guardado» al recuperarse. Al cerrar la pestaña con cambios pendientes se pide confirmación.
+- Rendimiento: la comprobación de acceso ya no descarga el contenido completo de la nota en cada edición.
+- Robustez: un fallo de base de datos al volcar una nota ya no puede tumbar el servidor; y el log de SignalR queda visible.
+
 ## 1.3.1 — 2026-10-06
 
 - Al pasar del Explorador a Configuración o Administración y volver ya no se recarga nada: el árbol, la nota abierta, su conexión en tiempo real, el scroll y la selección se conservan (la vista se oculta en lugar de desmontarse). El botón «Explorador» vuelve a la última nota abierta.

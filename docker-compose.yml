@@ -50,6 +50,8 @@ services:
       # Root administrator(s): get the super admin role at sign-in (only when Google verifies the e-mail).
       # More admins are appointed from the /admin panel by existing super admins.
       Admin__SuperAdminEmails__0: ${SUPERADMIN_EMAIL:-michaelhernandeznaranjo@gmail.com}
+      # Maximum size of one note's document in bytes (default 64 MB). Cloudflare accepts request bodies up to 100 MB on the free plan.
+      Notes__MaxNoteBytes: ${MAX_NOTE_BYTES:-67108864}
 
   frontend:
     build:

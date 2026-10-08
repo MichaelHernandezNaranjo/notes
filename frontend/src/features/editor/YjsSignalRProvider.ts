@@ -1,7 +1,9 @@
 import * as signalR from '@microsoft/signalr';
 import * as Y from 'yjs';
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from 'y-protocols/awareness';
-import { apiUrl, endSessionBlocked, getValidAccessToken } from '../../services/apiClient';
+import { apiFetch, apiUrl, endSessionBlocked, getValidAccessToken } from '../../services/apiClient';
+
+export type SaveState = 'saved' | 'saving' | 'unsaved';
 
 export type PresenceUser = { connectionId: string; name: string };
 
@@ -58,6 +60,16 @@ export class YjsSignalRProvider {
   /** True once the server state was applied; snapshots are never sent before, to avoid overwriting stored content with an empty doc. */
   private synced = false;
   private snapshotTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private retryDelay = 2000;
+  private saving: Promise<void> | null = null;
+  private saveAgain = false;
+  /** Local edits that the server has not acknowledged yet. */
+  private dirty = false;
+  private saveState: SaveState = 'saved';
+  private onSaveStateChange: ((state: SaveState) => void) | null = null;
+  private onSizeChange: ((sizeBytes: number, maxBytes: number) => void) | null = null;
+  private onTooLargeChange: ((maxBytes: number) => void) | null = null;
   /** When true (e.g. note in trash) no edits or snapshots are sent to the server. */
   public readOnly = false;
 
@@ -81,18 +93,110 @@ export class YjsSignalRProvider {
 
   /** Persists the full document state (debounced) so the server never has to merge deltas. */
   private scheduleSnapshot() {
+    this.dirty = true;
     if (!this.synced) return;
+    this.setSaveState('saving');
     if (this.snapshotTimer) clearTimeout(this.snapshotTimer);
-    this.snapshotTimer = setTimeout(() => this.flushSnapshot(), SNAPSHOT_DEBOUNCE_MS);
+    this.snapshotTimer = setTimeout(() => void this.flushSnapshot(), SNAPSHOT_DEBOUNCE_MS);
   }
 
-  private flushSnapshot() {
+  private setSaveState(state: SaveState) {
+    if (this.saveState === state) return;
+    this.saveState = state;
+    this.onSaveStateChange?.(state);
+  }
+
+  /** True while edits exist that the server does not have yet. */
+  get hasUnsavedChanges(): boolean {
+    return this.dirty;
+  }
+
+  /**
+   * Sends the full state over HTTP (not the WebSocket: a big note would exceed the message limit and drop the connection).
+   * One request at a time; failures keep the note marked as unsaved and retry with backoff, so the UI never claims "saved" falsely.
+   */
+  private flushSnapshot(): Promise<void> {
     if (this.snapshotTimer) {
       clearTimeout(this.snapshotTimer);
       this.snapshotTimer = null;
     }
-    if (!this.synced) return;
-    this.safeInvoke('SaveSnapshot', this.nodeId, toBase64(Y.encodeStateAsUpdate(this.doc)));
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    if (!this.synced || this.readOnly || !this.dirty) return Promise.resolve();
+    if (this.saving) {
+      this.saveAgain = true;
+      return this.saving;
+    }
+
+    this.saving = (async () => {
+      do {
+        this.saveAgain = false;
+        this.dirty = false;
+        const state = Y.encodeStateAsUpdate(this.doc);
+        this.setSaveState('saving');
+        try {
+          const response = await apiFetch(`/api/nodes/${this.nodeId}/content`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/octet-stream' },
+            body: state as unknown as BodyInit,
+          });
+          if (response.ok) {
+            const result = (await response.json()) as { sizeBytes: number; maxBytes: number };
+            this.retryDelay = 2000;
+            this.onSizeChange?.(result.sizeBytes, result.maxBytes);
+            if (!this.dirty) this.setSaveState('saved');
+            continue;
+          }
+          const body = (await response.json().catch(() => null)) as { code?: string; maxBytes?: number } | null;
+          this.dirty = true;
+          this.setSaveState('unsaved');
+          if (response.status === 413 && body?.code === 'note_too_large') {
+            this.onTooLargeChange?.(body.maxBytes ?? 0);
+          } else if (response.status === 413) {
+            this.onQuotaChange?.();
+          } else if (response.status === 403 && body?.code !== 'account_blocked') {
+            this.onAccessChange?.('Read');
+          } else if (response.status >= 500 || response.status === 408 || response.status === 429) {
+            this.scheduleRetry();
+          }
+          // Other client errors (limit, quota, access) are not retried by themselves: the next edit tries again.
+        } catch {
+          // Network failure: keep the changes and try again.
+          this.dirty = true;
+          this.setSaveState('unsaved');
+          this.scheduleRetry();
+        }
+      } while (this.saveAgain && !this.disposed);
+    })().finally(() => {
+      this.saving = null;
+    });
+    return this.saving;
+  }
+
+  private scheduleRetry() {
+    if (this.disposed || this.retryTimer) return;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      void this.flushSnapshot();
+    }, this.retryDelay);
+    this.retryDelay = Math.min(this.retryDelay * 2, 30000);
+  }
+
+  /** Fires when the save state changes: saved / saving / unsaved (server unreachable or refused). */
+  onSaveState(callback: (state: SaveState) => void) {
+    this.onSaveStateChange = callback;
+  }
+
+  /** Fires with the stored size after each successful save. */
+  onSize(callback: (sizeBytes: number, maxBytes: number) => void) {
+    this.onSizeChange = callback;
+  }
+
+  /** Fires when the server refuses to save because the note is over the per-note size limit. */
+  onNoteTooLarge(callback: (maxBytes: number) => void) {
+    this.onTooLargeChange = callback;
   }
 
   onPresenceUpdate(callback: (users: PresenceUser[]) => void) {
@@ -259,16 +363,8 @@ export class YjsSignalRProvider {
     if (!connection) return;
 
     // Persist pending edits (awaited) before tearing the connection down.
-    if (this.snapshotTimer) {
-      clearTimeout(this.snapshotTimer);
-      this.snapshotTimer = null;
-    }
+    await this.flushSnapshot();
     if (this.synced && connection.state === signalR.HubConnectionState.Connected) {
-      if (!this.readOnly) {
-        await connection
-          .invoke('SaveSnapshot', this.nodeId, toBase64(Y.encodeStateAsUpdate(this.doc)))
-          .catch(() => undefined);
-      }
       await connection.invoke('LeaveNote', this.nodeId).catch(() => undefined);
     }
     await connection.stop().catch(() => undefined);

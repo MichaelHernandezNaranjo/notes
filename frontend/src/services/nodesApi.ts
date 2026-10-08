@@ -23,6 +23,9 @@ export type NodeDto = {
   accessLevel?: 'Owner' | 'Edit' | 'Read' | null;
   /** True when the caller may manage sharing / permanently delete / move out. */
   canManage?: boolean;
+  /** Stored size of the note and the per-note limit, in bytes (set by getById). */
+  contentSizeBytes?: number;
+  maxNoteBytes?: number;
 };
 
 export type NodeSearchResult = {

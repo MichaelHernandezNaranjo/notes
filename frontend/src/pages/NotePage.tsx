@@ -19,6 +19,7 @@ export function NotePage({ nodeId: openId, active }: { nodeId: string | null; ac
   const [access, setAccess] = useState<NodeDto['accessLevel']>(null);
   const [canManage, setCanManage] = useState(false);
   const [noAccess, setNoAccess] = useState(false);
+  const [sizes, setSizes] = useState<{ bytes: number; max: number }>({ bytes: 0, max: 0 });
   const [notice, setNotice] = useState<string | null>(null);
 
   const loadNode = useCallback(async (id: string) => {
@@ -29,6 +30,7 @@ export function NotePage({ nodeId: openId, active }: { nodeId: string | null; ac
       setTrashed(node.isDeleted);
       setAccess(node.accessLevel ?? null);
       setCanManage(!!node.canManage);
+      setSizes({ bytes: node.contentSizeBytes ?? 0, max: node.maxNoteBytes ?? 0 });
       if (node.isDeleted) {
         // The location (ancestor names) comes from the trash listing.
         const trash = await nodesApi.getTrash().catch(() => []);
@@ -130,6 +132,8 @@ export function NotePage({ nodeId: openId, active }: { nodeId: string | null; ac
                 readOnly={access === 'Read'}
                 canManage={canManage}
                 onAccessChanged={onAccessChanged}
+                sizeBytes={sizes.bytes}
+                maxBytes={sizes.max}
               />
             </div>
           </div>

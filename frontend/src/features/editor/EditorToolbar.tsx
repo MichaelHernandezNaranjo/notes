@@ -5,7 +5,9 @@ import type { PresenceUser } from './YjsSignalRProvider';
 
 export type EditorToolbarProps = {
   title: string;
-  saveState: 'saved' | 'saving';
+  saveState: 'saved' | 'saving' | 'unsaved';
+  /** Tooltip with the note size, e.g. "12 MB of 64 MB". */
+  sizeLabel?: string;
   presence: PresenceUser[];
   onShare: () => void;
   onBack?: () => void;
@@ -64,7 +66,7 @@ const focusRing =
 export function EditorToolbar({
   title,
   saveState,
-  presence,
+  sizeLabel,  presence,
   onShare,
   onBack,
   shareDisabled = false,
@@ -100,6 +102,7 @@ export function EditorToolbar({
   };
 
   const saving = saveState === 'saving';
+  const unsaved = saveState === 'unsaved';
 
   return (
     <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border-subtle bg-bg-elevated px-2 sm:gap-3 sm:px-4 md:px-4">
@@ -122,14 +125,17 @@ export function EditorToolbar({
           <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">{t('sharing.readOnlyBadge')}</span>
         )}
         <span
-          className="flex shrink-0 items-center gap-1.5 text-xs text-neutral-600"
-          role="status"
+          className={`flex shrink-0 items-center gap-1.5 text-xs ${unsaved ? 'font-medium text-red-700' : 'text-neutral-600'}`}
+          role={unsaved ? 'alert' : 'status'}
           aria-live="polite"
+          title={sizeLabel}
         >
           <span
-            className={`h-2 w-2 rounded-full ${saving ? 'animate-pulse bg-amber-500' : 'bg-accent-emerald'}`}
+            className={`h-2 w-2 rounded-full ${unsaved ? 'bg-red-600' : saving ? 'animate-pulse bg-amber-500' : 'bg-accent-emerald'}`}
           />
-          <span className="hidden sm:inline">{saving ? t('editor.saving') : t('editor.saved')}</span>
+          <span className={unsaved ? '' : 'hidden sm:inline'}>
+            {unsaved ? t('editor.unsaved') : saving ? t('editor.saving') : t('editor.saved')}
+          </span>
         </span>
       </div>
 

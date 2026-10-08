@@ -14,7 +14,7 @@ public sealed record NodeDto(
     Guid Id, Guid? ParentId, Guid OwnerId, string Type, string Name,
     string? ContentJson, int SortOrder, bool IsDeleted, DateTime? DeletedAt,
     DateTime CreatedAt, DateTime UpdatedAt, bool IsFavorite, string? Path = null, Guid? DeletedRootId = null,
-    string? AccessLevel = null, bool CanManage = false);
+    string? AccessLevel = null, bool CanManage = false, long ContentSizeBytes = 0, long MaxNoteBytes = 0);
 
 public sealed record NodeSearchResultDto(Guid Id, Guid? ParentId, string Name, string Type, string Path, string[] PathIds);
 

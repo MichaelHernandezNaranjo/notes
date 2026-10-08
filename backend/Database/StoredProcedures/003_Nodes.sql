@@ -303,7 +303,9 @@ CREATE OR ALTER PROCEDURE dbo.sp_Node_GetById
 AS
 BEGIN
     SET NOCOUNT ON;
-    SELECT * FROM dbo.Nodes WHERE Id = @NodeId;
+    -- Not SELECT *: ContentYjsState can be tens of MB and this runs on every access check.
+    SELECT Id, ParentId, OwnerId, Type, Name, ContentJson, SortOrder, IsDeleted, DeletedAt, CreatedAt, UpdatedAt, ContentSizeBytes
+    FROM dbo.Nodes WHERE Id = @NodeId;
 END
 GO
 

@@ -232,6 +232,13 @@ export const translations = {
       untitled: 'Sin título',
       saving: 'Guardando...',
       saved: 'Guardado',
+      unsaved: 'Sin guardar',
+      size: {
+        label: 'Tamaño de la nota: {used} de {max}',
+        warn: 'Esta nota es muy grande ({used} de {max}). Considera dividirla en varias notas.',
+        critical: 'Casi llegas al límite de tamaño de esta nota ({used} de {max}). Divídela pronto: al llegar al límite no se podrá guardar.',
+        limit: 'Esta nota llegó al límite de {max}. Tus últimos cambios no se guardaron: borra contenido o copia el texto a otra nota.',
+      },
     },
     sharing: {
       title: 'Compartir',
@@ -563,6 +570,13 @@ export const translations = {
       untitled: 'Untitled',
       saving: 'Saving...',
       saved: 'Saved',
+      unsaved: 'Not saved',
+      size: {
+        label: 'Note size: {used} of {max}',
+        warn: 'This note is very large ({used} of {max}). Consider splitting it into several notes.',
+        critical: 'You are close to this note’s size limit ({used} of {max}). Split it soon: at the limit it can no longer be saved.',
+        limit: 'This note reached the {max} limit. Your latest changes were not saved: delete content or copy the text to another note.',
+      },
     },
     sharing: {
       title: 'Share',
